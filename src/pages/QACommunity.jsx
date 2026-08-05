@@ -40,7 +40,7 @@ function mapQuestion(q) {
   }
 }
 
-export default function QACommunity({ author, onAuthorChange, pendingDraft, onDraftConsumed }) {
+export default function QACommunity({ author, onLogout, pendingDraft, onDraftConsumed }) {
   const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
@@ -280,13 +280,11 @@ export default function QACommunity({ author, onAuthorChange, pendingDraft, onDr
 
   return (
     <div className="space-y-6 relative">
-      {/* 닉네임 설정 모달 (첫 방문 시 강제, 이후 선택) */}
       {showProfileModal && (
         <ProfileModal
-          onClose={(savedName) => {
-            if (savedName) onAuthorChange(savedName)
-            setShowProfileModal(false)
-          }}
+          author={author}
+          onLoggedOut={() => { setShowProfileModal(false); onLogout?.() }}
+          onClose={() => setShowProfileModal(false)}
         />
       )}
 
@@ -303,7 +301,7 @@ export default function QACommunity({ author, onAuthorChange, pendingDraft, onDr
                   onClick={() => setShowProfileModal(true)}
                   className="text-xs text-gray-500 hover:text-brand"
                 >
-                  {author} 님 · 닉네임 변경
+                  {author} 님 · 프로필
                 </button>
               )}
             </div>

@@ -1,21 +1,31 @@
 import { useState } from 'react'
-import { PartyPopper, Flame } from 'lucide-react'
+import { PartyPopper, Flame, Loader2 } from 'lucide-react'
+import { ROSTER, login } from '../utils/auth'
 
 export default function WelcomeModal({ onComplete }) {
-  const [nickname, setNickname] = useState('')
+  const [selected, setSelected] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleRegister = () => {
-    const name = nickname.trim()
+  const handleRegister = async () => {
+    const name = selected.trim()
     if (!name) {
-      alert('이름을 입력해주세요!')
+      setError('명단에서 본인 이름을 선택해주세요.')
       return
     }
-    localStorage.setItem('qa-author', name)
+    setLoading(true)
+    setError('')
+    const result = await login(name)
+    setLoading(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
     onComplete(name)
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-toss-bg flex items-center justify-center z-50 p-4">
       <div className="bg-surface rounded-2xl shadow-xl max-w-md w-full p-6 md:p-8 border border-brand/30">
         <div className="flex justify-center mb-4">
           <div className="w-16 h-16 rounded-full bg-brand/20 flex items-center justify-center">
@@ -44,23 +54,27 @@ export default function WelcomeModal({ onComplete }) {
           </p>
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-gray-400 whitespace-nowrap shrink-0">레전드 12기</span>
-            <input
-              type="text"
-              autoFocus
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleRegister()}
-              placeholder="이름"
-              className="flex-1 min-w-0 p-3 border border-white/10 rounded-xl text-center font-bold focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-            />
+            <select
+              value={selected}
+              onChange={(e) => { setSelected(e.target.value); setError('') }}
+              className="flex-1 min-w-0 p-3 border border-white/10 rounded-xl text-center font-bold bg-surface focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+            >
+              <option value="">이름 선택</option>
+              {ROSTER.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
             <span className="text-sm font-bold text-gray-400 whitespace-nowrap shrink-0">예비 트레이너</span>
           </div>
+          {error && <p className="text-xs font-bold text-red-400 text-center mt-2">{error}</p>}
         </div>
 
         <button
           onClick={handleRegister}
-          className="w-full bg-brand hover:bg-brand-dark text-white font-extrabold py-3.5 rounded-xl transition text-lg shadow-floating"
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-extrabold py-3.5 rounded-xl transition text-lg shadow-floating"
         >
+          {loading && <Loader2 size={18} className="animate-spin" />}
           등록하고 시작하기
         </button>
       </div>

@@ -1,13 +1,16 @@
 import { useState } from 'react'
-import { User, X } from 'lucide-react'
+import { User, X, LogOut, Loader2 } from 'lucide-react'
+import { logout } from '../utils/auth'
 
-export default function ProfileModal({ onClose }) {
-  const [nickname, setNickname] = useState(localStorage.getItem('qa-author') || '')
+export default function ProfileModal({ author, onLoggedOut, onClose }) {
+  const [loading, setLoading] = useState(false)
 
-  const handleSave = () => {
-    const name = nickname.trim() || '익명'
-    localStorage.setItem('qa-author', name)
-    onClose(name)
+  const handleLogout = async () => {
+    if (!confirm('로그아웃하시겠어요? 다른 사람이 이 기기에서 로그인할 수 있게 자리가 비워져요.')) return
+    setLoading(true)
+    await logout()
+    setLoading(false)
+    onLoggedOut()
   }
 
   return (
@@ -16,27 +19,25 @@ export default function ProfileModal({ onClose }) {
         <div className="flex items-center justify-between mb-1">
           <h3 className="flex items-center gap-2 text-lg font-extrabold">
             <User size={20} className="text-brand" />
-            닉네임 변경
+            내 프로필
           </h3>
-          <button onClick={() => onClose(null)} className="text-gray-500 hover:text-gray-200">
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-200">
             <X size={20} />
           </button>
         </div>
-        <p className="text-xs text-gray-500 mb-4">게시판과 연습 기록에 사용할 이름이에요</p>
-        <input
-          type="text"
-          autoFocus
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-          placeholder="닉네임 입력"
-          className="w-full p-3 border border-white/10 rounded-xl mb-4 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-        />
+        <p className="text-xs text-gray-500 mb-4">게시판과 연습 기록에 사용되는 이름이에요</p>
+
+        <div className="bg-surface-alt rounded-xl p-4 text-center mb-4">
+          <p className="text-lg font-extrabold text-white">{author}</p>
+        </div>
+
         <button
-          onClick={handleSave}
-          className="w-full bg-brand hover:bg-brand-dark text-white font-bold py-3 rounded-xl transition"
+          onClick={handleLogout}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 disabled:opacity-60 text-gray-200 font-bold py-3 rounded-xl transition"
         >
-          저장하기
+          {loading ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
+          로그아웃
         </button>
       </div>
     </div>
