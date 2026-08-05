@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Mic, Shuffle, AlertTriangle, Globe, Lock, Star, FolderOpen, Trash2, Tag, MessageCircle, Download, Loader2 } from 'lucide-react'
-import { generateUUID, formatDate, getRandomItem } from '../utils/formatters'
-import { getEmergencyItems, saveEmergencyItem, updateEmergencyItem, deleteEmergencyItem } from '../utils/storage'
+import { formatDate, getRandomItem } from '../utils/formatters'
+import { getEmergencyItems, updateEmergencyItem, deleteEmergencyItem } from '../utils/storage'
 import { supabase, supabaseConfigured } from '../utils/supabase'
 import { WEEKS } from '../utils/weeks'
 import AnswerPracticeModal from '../components/AnswerPracticeModal'
@@ -10,14 +10,9 @@ export default function PracticeRoom() {
   const [selectedWeek, setSelectedWeek] = useState('0')
   const [items, setItems] = useState([])
   const [folderOnly, setFolderOnly] = useState(false)
-  const [situation, setSituation] = useState('')
-  const [myAnswer, setMyAnswer] = useState('')
-  const [category, setCategory] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('전체')
-  const [visibility, setVisibility] = useState('shared')
   const [randomItem, setRandomItem] = useState(null)
   const [practiceItem, setPracticeItem] = useState(null)
-  const author = localStorage.getItem('qa-author') || '익명'
 
   const [qaQuestions, setQaQuestions] = useState([])
   const [qaLoading, setQaLoading] = useState(false)
@@ -33,7 +28,7 @@ export default function PracticeRoom() {
     setQaLoading(true)
     supabase
       .from('questions')
-      .select('id, title, category, created_at')
+      .select('id, title, category, week, created_at')
       .eq('category', 'unexpected')
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
@@ -44,36 +39,15 @@ export default function PracticeRoom() {
 
   useEffect(() => {
     setCategoryFilter('전체')
+    setQaRandom(null)
   }, [selectedWeek])
+
+  const qaQuestionsForWeek = qaQuestions.filter(q => !q.week || q.week === selectedWeek)
 
   const weekItems = items.filter(i => i.week === selectedWeek)
   const weekCategories = ['전체', ...Array.from(new Set(weekItems.map(i => i.category).filter(Boolean)))]
   const categoryFiltered = categoryFilter === '전체' ? weekItems : weekItems.filter(i => i.category === categoryFilter)
   const visibleItems = folderOnly ? categoryFiltered.filter(i => i.isCollected) : categoryFiltered
-
-  const handleAdd = () => {
-    if (!situation.trim() || !myAnswer.trim()) {
-      alert('돌발 상황과 내 답변을 모두 입력해주세요.')
-      return
-    }
-    const item = {
-      id: generateUUID(),
-      week: selectedWeek,
-      author,
-      situation: situation.trim(),
-      myAnswer: myAnswer.trim(),
-      category: category.trim() || '기타',
-      visibility,
-      isCollected: false,
-      createdAt: new Date().toISOString()
-    }
-    saveEmergencyItem(item)
-    setItems([item, ...items])
-    setSituation('')
-    setMyAnswer('')
-    setCategory('')
-    setVisibility('shared')
-  }
 
   const handleToggleCollect = (id) => {
     const target = items.find(i => i.id === id)
@@ -102,7 +76,7 @@ export default function PracticeRoom() {
   }
 
   const handleQaRandomPick = () => {
-    const picked = getRandomItem(qaQuestions)
+    const picked = getRandomItem(qaQuestionsForWeek)
     if (!picked) {
       alert('Q&A 커뮤니티에 등록된 돌발질문이 없어요.')
       return
@@ -189,9 +163,12 @@ export default function PracticeRoom() {
               onClick={() => setQaOpen(!qaOpen)}
               className="text-xs font-bold text-gray-500 hover:text-brand"
             >
-              {qaOpen ? '목록 닫기' : `목록 보기 (${qaQuestions.length})`}
+              {qaOpen ? '목록 닫기' : `목록 보기 (${qaQuestionsForWeek.length})`}
             </button>
           </div>
+          <p className="text-xs text-gray-500 -mt-2">
+            {WEEKS.find(w => w.id === selectedWeek)?.label} 돌발질문만 모아서 보여줘요 (Q&A에 등록할 때 주차를 표시하면 여기 반영돼요)
+          </p>
 
           <button
             onClick={handleQaRandomPick}
@@ -221,10 +198,10 @@ export default function PracticeRoom() {
 
           {qaOpen && (
             <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
-              {qaQuestions.length === 0 && !qaLoading && (
-                <p className="text-sm text-gray-500 text-center py-4">Q&A 커뮤니티에 등록된 돌발질문이 없어요.</p>
+              {qaQuestionsForWeek.length === 0 && !qaLoading && (
+                <p className="text-sm text-gray-500 text-center py-4">이번 주차에 등록된 Q&A 돌발질문이 없어요.</p>
               )}
-              {qaQuestions.map((q) => (
+              {qaQuestionsForWeek.map((q) => (
                 <div key={q.id} className="flex items-center gap-2 p-3 bg-surface-alt rounded-xl">
                   <p className="flex-1 text-sm text-gray-200 truncate">{q.title}</p>
                   <button
@@ -240,58 +217,6 @@ export default function PracticeRoom() {
           )}
         </div>
       )}
-
-      {/* 돌발사항 추가 */}
-      <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 space-y-3">
-        <h3 className="text-lg font-extrabold">돌발사항 추가</h3>
-        <textarea
-          value={situation}
-          onChange={(e) => setSituation(e.target.value)}
-          placeholder="어떤 돌발 상황이었나요?"
-          className="w-full p-3 border border-white/10 rounded-xl text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-          rows="2"
-        />
-        <textarea
-          value={myAnswer}
-          onChange={(e) => setMyAnswer(e.target.value)}
-          placeholder="나라면 이렇게 답하겠다..."
-          className="w-full p-3 border border-white/10 rounded-xl text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-          rows="3"
-        />
-        <input
-          type="text"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          placeholder="카테고리 (예: 환불, 가격문의, 시간관리 - 비워두면 기타)"
-          className="w-full p-3 border border-white/10 rounded-xl text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-        />
-        <div className="flex gap-2">
-          <button
-            onClick={() => setVisibility('shared')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm transition ${
-              visibility === 'shared' ? 'bg-brand text-white' : 'bg-surface-alt text-gray-400'
-            }`}
-          >
-            <Globe size={14} />
-            공유하기
-          </button>
-          <button
-            onClick={() => setVisibility('private')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm transition ${
-              visibility === 'private' ? 'bg-gray-600 text-white' : 'bg-surface-alt text-gray-400'
-            }`}
-          >
-            <Lock size={14} />
-            나만보기
-          </button>
-        </div>
-        <button
-          onClick={handleAdd}
-          className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition"
-        >
-          추가하기
-        </button>
-      </div>
 
       {/* 목록 */}
       <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 space-y-3">

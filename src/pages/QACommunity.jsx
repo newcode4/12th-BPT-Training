@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { formatDate } from '../utils/formatters'
 import { supabase, supabaseConfigured } from '../utils/supabase'
+import { WEEKS } from '../utils/weeks'
 import AnswerPracticeModal from '../components/AnswerPracticeModal'
 import ProfileModal from '../components/ProfileModal'
 
@@ -31,6 +32,7 @@ function mapQuestion(q) {
     category: q.category,
     title: q.title,
     content: q.content,
+    week: q.week || '',
     tags: q.tags || [],
     author: q.author,
     createdAt: q.created_at,
@@ -58,6 +60,7 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
   const [newTitle, setNewTitle] = useState('')
   const [newContent, setNewContent] = useState('')
   const [newTags, setNewTags] = useState('')
+  const [newWeek, setNewWeek] = useState('')
   const [showContentField, setShowContentField] = useState(false)
 
   const loadQuestions = async () => {
@@ -103,7 +106,14 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
 
     const { data, error } = await supabase
       .from('questions')
-      .insert({ category: newCategory, title: newTitle.trim(), content: newContent.trim(), tags, author })
+      .insert({
+        category: newCategory,
+        title: newTitle.trim(),
+        content: newContent.trim(),
+        tags,
+        author,
+        week: newCategory === 'unexpected' ? (newWeek || null) : null,
+      })
       .select('*, answers(*)')
       .single()
 
@@ -115,6 +125,7 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
     setNewTitle('')
     setNewContent('')
     setNewTags('')
+    setNewWeek('')
     setNewCategory('unexpected')
     setShowContentField(false)
     setView('list')
@@ -380,6 +391,11 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
                 >
                   <div className="flex items-center gap-2 mb-1">
                     {categoryBadge(q.category)}
+                    {q.week && (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white/10 text-gray-300">
+                        {WEEKS.find(w => w.id === q.week)?.label || `${q.week}주차`}
+                      </span>
+                    )}
                     <span className="text-xs text-gray-500">답변 {q.answers?.length || 0}</span>
                   </div>
                   <h4 className="font-bold">{q.title}</h4>
@@ -445,6 +461,23 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
                 </button>
               ))}
             </div>
+            {newCategory === 'unexpected' && (
+              <div className="flex flex-wrap gap-1.5">
+                {WEEKS.map((w) => (
+                  <button
+                    key={w.id}
+                    onClick={() => setNewWeek(newWeek === w.id ? '' : w.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                      newWeek === w.id
+                        ? 'bg-brand text-white'
+                        : 'bg-surface-alt text-gray-400 hover:bg-white/10'
+                    }`}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+            )}
             <input
               type="text"
               placeholder="질문 제목"
@@ -505,6 +538,11 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
           <div>
             <div className="flex items-center gap-2 mb-2">
               {categoryBadge(selectedQuestion.category)}
+              {selectedQuestion.week && (
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white/10 text-gray-300">
+                  {WEEKS.find(w => w.id === selectedQuestion.week)?.label || `${selectedQuestion.week}주차`}
+                </span>
+              )}
             </div>
             <h3 className="text-2xl font-extrabold mb-2">{selectedQuestion.title}</h3>
             <p className="text-sm text-gray-400 mb-2">
