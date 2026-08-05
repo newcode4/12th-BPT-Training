@@ -772,7 +772,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                     {file && (
                     <button
                       onClick={handleScrap}
-                      className="shine flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-xl transition active:scale-95"
+                      className="shine relative flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-xl transition active:scale-95"
                     >
                       <Bookmark size={16} />
                       스크랩 ({currentTime.toFixed(1)}초)
@@ -812,7 +812,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                       {scraps.length > 0 && (
                         <button
                           onClick={handleSaveAnalysis}
-                          className="shine glow-breathe w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-3 px-4 rounded-xl transition active:scale-95"
+                          className="shine relative glow-breathe w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-3 px-4 rounded-xl transition active:scale-95"
                         >
                           <Save size={16} />
                           분석 저장

@@ -144,7 +144,10 @@ textarea::placeholder {
   .lift:active { transform: translate3d(0, 0, 0) scale(0.995); }
 
   /* 주요 버튼 위로 빛이 한 번 훑고 지나간다 */
-  .shine { position: relative; overflow: hidden; isolation: isolate; }
+  /* position은 강제하지 않는다 — fixed 버튼에 쓰면 이 값이 나중에 로드되어
+     Tailwind의 fixed를 덮어써 버튼이 화면에 붙지 않고 늘어나 버린다.
+     position이 필요한 곳(static 버튼)은 JSX에서 relative를 같이 붙인다. */
+  .shine { overflow: hidden; isolation: isolate; }
   .shine::after {
     content: '';
     position: absolute;

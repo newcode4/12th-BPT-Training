@@ -89,7 +89,7 @@ export default function WelcomeModal({ onComplete }) {
         <button
           onClick={handleRegister}
           disabled={loading}
-          className="shine glow-breathe w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-extrabold py-3.5 rounded-xl transition-transform active:scale-95 text-lg shadow-floating"
+          className="shine relative glow-breathe w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-extrabold py-3.5 rounded-xl transition-transform active:scale-95 text-lg shadow-floating"
         >
           {loading && <Loader2 size={18} className="animate-spin" />}
           등록하고 시작하기

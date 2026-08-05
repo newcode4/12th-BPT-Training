@@ -103,7 +103,7 @@ export default function PracticeRoom() {
         <button
           onClick={handleRandom}
           disabled={loading}
-          className="shine glow-breathe w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-bold py-4 rounded-xl transition active:scale-95 shadow-floating"
+          className="shine relative glow-breathe w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-bold py-4 rounded-xl transition active:scale-95 shadow-floating"
         >
           {loading ? <Loader2 size={17} className="animate-spin" /> : <Shuffle size={17} />}
           랜덤으로 하나 뽑기

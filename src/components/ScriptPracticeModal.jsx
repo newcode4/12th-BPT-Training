@@ -133,7 +133,7 @@ export default function ScriptPracticeModal({
             <button
               onClick={() => setRunning(!running)}
               disabled={timeLeft <= 0}
-              className={`shine flex-1 flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark disabled:opacity-40 text-white font-bold py-2.5 rounded-xl transition active:scale-95 ${running ? 'pulse-ring' : ''}`}
+              className={`shine relative flex-1 flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark disabled:opacity-40 text-white font-bold py-2.5 rounded-xl transition active:scale-95 ${running ? 'pulse-ring' : ''}`}
             >
               {running ? <Pause size={15} /> : <Play size={15} />}
               {running ? '일시정지' : '타이머 시작'}

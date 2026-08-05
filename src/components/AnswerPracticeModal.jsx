@@ -97,7 +97,7 @@ export default function AnswerPracticeModal({ answerContent, onClose }) {
           {!isRecording && !recordedURL && (
             <button
               onClick={handleStart}
-              className="shine glow-breathe w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark text-white font-bold py-3 px-6 rounded-xl text-lg transition active:scale-95"
+              className="shine relative glow-breathe w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark text-white font-bold py-3 px-6 rounded-xl text-lg transition active:scale-95"
             >
               <Mic size={18} />
               녹음 시작

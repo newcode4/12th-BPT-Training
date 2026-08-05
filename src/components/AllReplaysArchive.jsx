@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, PlayCircle } from 'lucide-react'
-import { loadYouTubeAPI } from '../utils/youtube'
+import { ChevronDown, PlayCircle, ShieldCheck, Plus, Trash2 } from 'lucide-react'
+import { loadYouTubeAPI, parseYouTubeUrl } from '../utils/youtube'
+import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
+import { isAdminMode } from '../utils/admin'
+import { generateUUID } from '../utils/formatters'
 
 // 전체 라이브 다시보기 (날짜순 원본 아카이브) - YYMMDD, videoId
-const ALL_REPLAYS = [
+// 관리자가 추가하는 회차는 서버(records, kind: replay)에 쌓인다
+const CURATED_REPLAYS = [
   { date: '260804', videoId: 'RIBFaQZL7no' },
   { date: '260803', videoId: 'fGxzSRnk27E' },
   { date: '260730', videoId: '7cVHdAIKNyY' },
@@ -17,6 +21,11 @@ const ALL_REPLAYS = [
   { date: '260720', videoId: 'r7GNZoB_uM4' },
 ]
 
+function todayYYMMDD() {
+  const d = new Date()
+  return String(d.getFullYear()).slice(2) + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0')
+}
+
 function formatArchiveDate(yymmdd) {
   const yy = yymmdd.slice(0, 2)
   const mm = yymmdd.slice(2, 4)
@@ -24,11 +33,82 @@ function formatArchiveDate(yymmdd) {
   return `20${yy}.${mm}.${dd}`
 }
 
+function AdminAddReplayForm({ onAdded }) {
+  const [date, setDate] = useState(todayYYMMDD())
+  const [url, setUrl] = useState('')
+
+  const handleAdd = async () => {
+    const videoId = parseYouTubeUrl(url.trim())
+    if (!videoId || !/^\d{6}$/.test(date)) {
+      alert('날짜(YYMMDD 6자리)와 올바른 유튜브 링크를 입력해주세요.')
+      return
+    }
+    const replay = { id: generateUUID(), date, videoId }
+    try {
+      await putRecord('replay', replay)
+      onAdded(replay)
+      setUrl('')
+    } catch (e) {
+      alert('추가에 실패했어요: ' + e.message)
+    }
+  }
+
+  return (
+    <div className="bg-surface-alt rounded-xl p-3 space-y-2 border border-brand/20">
+      <p className="flex items-center gap-1.5 text-xs font-bold text-brand">
+        <ShieldCheck size={13} />
+        관리자 · 오늘 라이브 다시보기 추가
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={date}
+          onChange={(e) => setDate(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          placeholder="YYMMDD"
+          className="w-24 shrink-0 p-2.5 border border-white/10 rounded-xl text-sm bg-surface font-mono text-center focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+        />
+        <input
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+          placeholder="https://youtu.be/xxxxxxxxxxx 또는 라이브 링크"
+          className="flex-1 min-w-0 p-2.5 border border-white/10 rounded-xl text-sm bg-surface focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+        />
+      </div>
+      <button
+        onClick={handleAdd}
+        className="w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
+      >
+        <Plus size={14} />
+        추가
+      </button>
+    </div>
+  )
+}
+
 export default function AllReplaysArchive() {
   const [open, setOpen] = useState(false)
   const [activeVideoId, setActiveVideoId] = useState(null)
+  const [adminReplays, setAdminReplays] = useState([])
   const mountRef = useRef(null)
   const playerRef = useRef(null)
+  const admin = isAdminMode()
+
+  useEffect(() => {
+    listRecords('replay').then(setAdminReplays).catch(() => {})
+  }, [])
+
+  // 관리자가 추가한 회차가 큐레이션 목록과 날짜가 겹치면 관리자 쪽을 우선한다 (최신으로 교체 가능하게)
+  const curatedFiltered = CURATED_REPLAYS.filter(
+    (c) => !adminReplays.some((a) => a.date === c.date)
+  )
+  const replays = [...adminReplays, ...curatedFiltered].sort((a, b) => b.date.localeCompare(a.date))
+
+  const handleDelete = (id) => {
+    setAdminReplays(adminReplays.filter((r) => r.id !== id))
+    removeRecord('replay', id).catch((e) => console.error('다시보기 삭제 실패', e))
+  }
 
   useEffect(() => {
     if (!activeVideoId) return
@@ -59,27 +139,41 @@ export default function AllReplaysArchive() {
       >
         <span className="flex items-center gap-2 text-sm font-extrabold text-gray-400">
           <PlayCircle size={16} className="text-gray-500" />
-          전체 라이브 다시보기 ({ALL_REPLAYS.length})
+          전체 라이브 다시보기 ({replays.length})
         </span>
         <ChevronDown size={18} className={`text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
         <div className="p-4 md:p-6 pt-0 space-y-4">
+          {admin && (
+            <AdminAddReplayForm onAdded={(r) => setAdminReplays([r, ...adminReplays])} />
+          )}
+
           {/* 날짜 토글 필터 */}
           <div className="flex flex-wrap gap-2">
-            {ALL_REPLAYS.map((r) => (
-              <button
-                key={r.videoId}
-                onClick={() => setActiveVideoId(r.videoId)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition ${
-                  activeVideoId === r.videoId
-                    ? 'bg-brand text-white'
-                    : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
-                }`}
-              >
-                {formatArchiveDate(r.date)}
-              </button>
+            {replays.map((r) => (
+              <span key={r.id || r.videoId} className="inline-flex items-center">
+                <button
+                  onClick={() => setActiveVideoId(r.videoId)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition ${
+                    activeVideoId === r.videoId
+                      ? 'bg-brand text-white'
+                      : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                  } ${admin && r.id ? 'rounded-r-none' : ''}`}
+                >
+                  {formatArchiveDate(r.date)}
+                </button>
+                {admin && r.id && (
+                  <button
+                    onClick={() => handleDelete(r.id)}
+                    className="px-1.5 py-1.5 rounded-r-lg bg-surface-alt hover:bg-red-500/20 text-gray-500 hover:text-red-400 border-l border-white/10"
+                    title="이 회차 삭제"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                )}
+              </span>
             ))}
           </div>
 

@@ -9,6 +9,7 @@ import { WEEKS } from '../utils/weeks'
 import { TOPICS, parseTags, buildTags } from '../utils/qaTags'
 import AnswerPracticeModal from '../components/AnswerPracticeModal'
 import ProfileModal from '../components/ProfileModal'
+import { isAdminMode } from '../utils/admin'
 
 const CATEGORIES = [
   { id: 'all', label: '전체' },
@@ -79,6 +80,7 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
   const [newCategory, setNewCategory] = useState('unexpected')
   const [newTitle, setNewTitle] = useState('')
   const [newContent, setNewContent] = useState('')
+  const admin = isAdminMode()
   const [newWeek, setNewWeek] = useState('')
   const [newTopic, setNewTopic] = useState('')
   const [showContentField, setShowContentField] = useState(false)
@@ -246,6 +248,24 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
     const updatedQuestion = {
       ...selectedQuestion,
       answers: selectedQuestion.answers.map(a => ({ ...a, isPinned: a.id === answerId ? nextPinned : false }))
+    }
+    setSelectedQuestion(updatedQuestion)
+    setQuestions(questions.map(q => q.id === selectedQuestion.id ? updatedQuestion : q))
+  }
+
+  const canModerate = (item) => admin || item.author === author
+
+  const handleDeleteAnswer = async (answerId) => {
+    if (!selectedQuestion) return
+    if (!confirm('이 답변을 삭제하시겠습니까?')) return
+    const { error } = await supabase.from('answers').delete().eq('id', answerId)
+    if (error) {
+      alert('삭제에 실패했어요: ' + error.message)
+      return
+    }
+    const updatedQuestion = {
+      ...selectedQuestion,
+      answers: selectedQuestion.answers.filter(a => a.id !== answerId)
     }
     setSelectedQuestion(updatedQuestion)
     setQuestions(questions.map(q => q.id === selectedQuestion.id ? updatedQuestion : q))
@@ -594,7 +614,7 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
             <button
               onClick={handleSubmitQuestion}
               disabled={submitting}
-              className="shine w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-bold py-4 rounded-xl transition active:scale-95"
+              className="shine relative w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-bold py-4 rounded-xl transition active:scale-95"
             >
               {submitting && <Loader2 size={16} className="animate-spin" />}
               {editingId ? '수정 완료' : '등록하기'}
@@ -609,20 +629,29 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
             <button onClick={() => setView('list')} className="text-gray-500 hover:text-gray-200">
               <ArrowLeft size={20} />
             </button>
-            <button
-              onClick={() => handleStartEdit(selectedQuestion)}
-              className="ml-auto flex items-center gap-1 text-sm text-gray-400 hover:text-brand"
-            >
-              <PenSquare size={14} />
-              수정
-            </button>
-            <button
-              onClick={() => handleDeleteQuestion(selectedQuestion.id)}
-              className="flex items-center gap-1 text-sm text-red-400 hover:text-red-600"
-            >
-              <Trash2 size={14} />
-              삭제
-            </button>
+            {canModerate(selectedQuestion) && (
+              <div className="ml-auto flex items-center gap-3">
+                {admin && selectedQuestion.author !== author && (
+                  <span className="text-[10px] font-bold text-brand bg-brand-light px-2 py-1 rounded-full whitespace-nowrap">
+                    관리자 권한
+                  </span>
+                )}
+                <button
+                  onClick={() => handleStartEdit(selectedQuestion)}
+                  className="flex items-center gap-1 text-sm text-gray-400 hover:text-brand"
+                >
+                  <PenSquare size={14} />
+                  수정
+                </button>
+                <button
+                  onClick={() => handleDeleteQuestion(selectedQuestion.id)}
+                  className="flex items-center gap-1 text-sm text-red-400 hover:text-red-600"
+                >
+                  <Trash2 size={14} />
+                  삭제
+                </button>
+              </div>
+            )}
           </div>
 
           <div>
@@ -704,6 +733,15 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
                     <Mic size={13} />
                     연습
                   </button>
+                  {canModerate(answer) && (
+                    <button
+                      onClick={() => handleDeleteAnswer(answer.id)}
+                      className="flex items-center gap-1 text-sm font-bold text-gray-500 hover:text-red-500 bg-surface px-3 py-1.5 rounded-lg border border-white/10 active:scale-95 transition"
+                    >
+                      <Trash2 size={13} />
+                      삭제
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
