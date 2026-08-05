@@ -1,8 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Mic, Square, X } from 'lucide-react'
 import { formatTime } from '../utils/formatters'
 
+const TIMER_PRESETS = [30, 60, 90, 120]
+
 export default function AnswerPracticeModal({ answerContent, onClose }) {
+  const [duration, setDuration] = useState(60)
   const [timeLeft, setTimeLeft] = useState(60)
   const [isRecording, setIsRecording] = useState(false)
   const [recordedURL, setRecordedURL] = useState(null)
@@ -51,7 +55,7 @@ export default function AnswerPracticeModal({ answerContent, onClose }) {
       }
       mediaRecorder.start()
       mediaRecorderRef.current = mediaRecorder
-      setTimeLeft(60)
+      setTimeLeft(duration)
       setRecordedURL(null)
       setIsRecording(true)
     } catch (error) {
@@ -66,19 +70,19 @@ export default function AnswerPracticeModal({ answerContent, onClose }) {
     setIsRecording(false)
   }
 
-  return (
+  return createPortal(
     <div
-      className="anim-fade fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="anim-fade fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto overscroll-contain"
       onClick={onClose}
     >
       <div
-        className="anim-modal bg-surface rounded-2xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto"
+        className="anim-modal bg-surface rounded-2xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
           <h3 className="flex items-center gap-2 text-xl font-bold">
             <Mic size={20} className="text-brand" />
-            1분 대처 연습
+            대처 연습
           </h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-200">
             <X size={20} />
@@ -93,6 +97,22 @@ export default function AnswerPracticeModal({ answerContent, onClose }) {
         </div>
 
         <div className="text-center">
+          {!isRecording && !recordedURL && (
+            <div className="flex justify-center gap-1.5 mb-3">
+              {TIMER_PRESETS.map((sec) => (
+                <button
+                  key={sec}
+                  onClick={() => { setDuration(sec); setTimeLeft(sec) }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                    duration === sec ? 'bg-brand text-white' : 'bg-surface-alt text-gray-400 hover:bg-white/10'
+                  }`}
+                >
+                  {sec < 60 ? `${sec}초` : `${sec / 60}분${sec % 60 ? ` ${sec % 60}초` : ''}`}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div
             className={`text-5xl font-bold text-brand font-mono mb-4 transition-all duration-300 ${
               isRecording ? 'scale-110 drop-shadow-[0_0_22px_rgba(229,37,58,0.7)]' : ''
@@ -149,6 +169,7 @@ export default function AnswerPracticeModal({ answerContent, onClose }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

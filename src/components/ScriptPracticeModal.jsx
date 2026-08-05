@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { PenLine, X, Check, Play, Pause, RotateCcw, Copy, EyeOff, Eye } from 'lucide-react'
 import { formatTime, generateUUID } from '../utils/formatters'
 import { putRecord, removeRecord } from '../utils/cloudStore'
@@ -6,6 +7,7 @@ import { supabase, supabaseConfigured } from '../utils/supabase'
 
 // 한국어 발표 기준 대략 분당 320자 정도로 잡아 예상 시간을 보여준다
 const CHARS_PER_MINUTE = 320
+const TIMER_PRESETS = [30, 60, 90, 120]
 
 // 돌발질문에서는 "원고 쓰기" = "답변하기" — 저장한 원고를 Q&A 공개 답변에도 그대로 반영한다.
 // 한 사람당 한 질문에 공개 답변은 하나만 유지한다 (다시 쓰면 그 답변이 갱신된다).
@@ -38,6 +40,7 @@ export default function ScriptPracticeModal({
   const [revealed, setRevealed] = useState(!(blind && hasExisting))
   const [script, setScript] = useState(existing?.text || '')
   const [savedAt, setSavedAt] = useState(null)
+  const [duration, setDuration] = useState(60)
   const [timeLeft, setTimeLeft] = useState(60)
   const [running, setRunning] = useState(false)
   const textareaRef = useRef(null)
@@ -107,7 +110,7 @@ export default function ScriptPracticeModal({
     }
   }
 
-  return (
+  return createPortal(
     <div
       className="anim-fade fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto overscroll-contain"
       onClick={onClose}
@@ -166,7 +169,7 @@ export default function ScriptPracticeModal({
           <div className="p-5 mb-4 bg-surface-alt border border-dashed border-white/15 rounded-xl text-center space-y-2">
             <EyeOff size={20} className="mx-auto text-gray-500" />
             <p className="text-sm font-bold text-gray-300">원고를 보지 않고 먼저 말해보세요</p>
-            <p className="text-[11px] text-gray-500">타이머로 1분간 소리 내어 답해본 뒤 원고를 확인해보세요</p>
+            <p className="text-[11px] text-gray-500">아래 타이머로 소리 내어 답해본 뒤 원고를 확인해보세요</p>
             <button
               onClick={() => setRevealed(true)}
               className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline mt-1"
@@ -177,9 +180,26 @@ export default function ScriptPracticeModal({
           </div>
         )}
 
-        {/* 1분 타이머 - 쓴 스크립트를 소리내어 읽어보는 용도 */}
+        {/* 타이머 - 쓴 스크립트를 소리내어 읽어보는 용도, 시간은 직접 정할 수 있다 */}
         <div className="bg-surface-alt border border-white/10 rounded-xl p-4 mb-4 text-center">
-          <p className="text-[11px] font-bold text-gray-400 mb-2">쓴 스크립트로 1분 안에 말해보기</p>
+          <p className="text-[11px] font-bold text-gray-400 mb-2">쓴 스크립트로 정해둔 시간 안에 말해보기</p>
+
+          {!running && (
+            <div className="flex justify-center gap-1.5 mb-3">
+              {TIMER_PRESETS.map((sec) => (
+                <button
+                  key={sec}
+                  onClick={() => { setDuration(sec); setTimeLeft(sec) }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                    duration === sec ? 'bg-brand text-white' : 'bg-surface text-gray-400 hover:bg-white/10'
+                  }`}
+                >
+                  {sec < 60 ? `${sec}초` : `${sec / 60}분${sec % 60 ? ` ${sec % 60}초` : ''}`}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div
             className={`text-4xl font-bold font-mono mb-3 transition-all duration-300 ${
               running
@@ -199,7 +219,7 @@ export default function ScriptPracticeModal({
               {running ? '일시정지' : '타이머 시작'}
             </button>
             <button
-              onClick={() => { setRunning(false); setTimeLeft(60) }}
+              onClick={() => { setRunning(false); setTimeLeft(duration) }}
               className="flex items-center justify-center gap-1.5 bg-white/10 hover:bg-white/15 text-gray-300 font-bold py-2.5 px-4 rounded-xl transition active:scale-95"
             >
               <RotateCcw size={15} />
@@ -227,6 +247,7 @@ export default function ScriptPracticeModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
