@@ -14,8 +14,8 @@ export default function ProfileModal({ author, onLoggedOut, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-2xl shadow-xl max-w-sm w-full p-6 border border-white/10">
+    <div className="anim-fade fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="anim-modal bg-surface rounded-2xl shadow-xl max-w-sm w-full p-6 border border-white/10">
         <div className="flex items-center justify-between mb-1">
           <h3 className="flex items-center gap-2 text-lg font-extrabold">
             <User size={20} className="text-brand" />

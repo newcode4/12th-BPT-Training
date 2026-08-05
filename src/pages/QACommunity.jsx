@@ -434,14 +434,14 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
           </div>
 
           {/* 질문 목록 */}
-          <div className="space-y-2">
+          <div className="stagger space-y-2">
             {visibleQuestions.map((q) => {
               const best = getBestAnswerOf(q)
               return (
                 <button
                   key={q.id}
                   onClick={() => { setSelectedQuestion(q); setView('detail') }}
-                  className="w-full text-left p-4 rounded-2xl bg-surface border border-white/10 shadow-card hover:border-brand/40 active:scale-[0.99] transition"
+                  className="lift w-full text-left p-4 rounded-2xl bg-surface border border-white/10 shadow-card hover:border-brand/40"
                 >
                   <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                     {categoryBadge(q.category)}
@@ -472,7 +472,7 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
           {/* 글쓰기 플로팅 버튼 */}
           <button
             onClick={() => setView('write')}
-            className="fixed bottom-24 md:bottom-8 right-4 md:right-8 z-20 flex items-center gap-1.5 bg-brand hover:bg-brand-dark active:scale-95 text-white font-bold px-5 py-3.5 rounded-full shadow-floating transition"
+            className="shine glow-breathe anim-pop fixed bottom-24 md:bottom-8 right-4 md:right-8 z-20 flex items-center gap-1.5 bg-brand hover:bg-brand-dark hover:scale-105 active:scale-95 text-white font-bold px-5 py-3.5 rounded-full shadow-floating transition-transform duration-300"
           >
             <PenSquare size={16} />
             글쓰기
@@ -481,7 +481,7 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
       )}
 
       {view === 'write' && (
-        <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
+        <div className="anim-rise bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
           <div className="flex items-center gap-3 mb-5">
             <button
               onClick={() => {
@@ -594,7 +594,7 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
             <button
               onClick={handleSubmitQuestion}
               disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-bold py-4 rounded-xl transition active:scale-95"
+              className="shine w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-bold py-4 rounded-xl transition active:scale-95"
             >
               {submitting && <Loader2 size={16} className="animate-spin" />}
               {editingId ? '수정 완료' : '등록하기'}
@@ -604,7 +604,7 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
       )}
 
       {view === 'detail' && selectedQuestion && (
-        <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 space-y-5">
+        <div className="anim-rise bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 space-y-5">
           <div className="flex items-center gap-3">
             <button onClick={() => setView('list')} className="text-gray-500 hover:text-gray-200">
               <ArrowLeft size={20} />

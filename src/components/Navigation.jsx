@@ -37,10 +37,10 @@ export default function Navigation({ currentPage, setCurrentPage, onOpenProfile 
                     <button
                       key={item.id}
                       onClick={() => setCurrentPage(item.id)}
-                      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition ${
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 active:scale-95 ${
                         currentPage === item.id
-                          ? 'bg-brand text-white'
-                          : 'text-gray-400 hover:bg-white/10'
+                          ? 'bg-brand text-white shadow-floating scale-105'
+                          : 'text-gray-400 hover:bg-white/10 hover:text-gray-100'
                       }`}
                     >
                       <Icon size={16} />
@@ -79,11 +79,19 @@ export default function Navigation({ currentPage, setCurrentPage, onOpenProfile 
             <button
               key={item.id}
               onClick={() => setCurrentPage(item.id)}
-              className={`flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-bold transition active:scale-95 ${
+              className={`relative flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-bold transition active:scale-90 ${
                 currentPage === item.id ? 'text-brand' : 'text-gray-500'
               }`}
             >
-              <Icon size={20} />
+              {currentPage === item.id && (
+                <span className="anim-fade absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-brand shadow-floating" />
+              )}
+              <Icon
+                size={20}
+                className={`transition-transform duration-300 ${
+                  currentPage === item.id ? 'scale-110 -translate-y-0.5' : ''
+                }`}
+              />
               <span className="whitespace-nowrap">{item.short}</span>
             </button>
           )

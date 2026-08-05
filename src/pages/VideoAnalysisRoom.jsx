@@ -5,7 +5,6 @@ import {
   ShieldCheck, Plus, X, AlertCircle
 } from 'lucide-react'
 import { generateUUID, formatTime, downloadJSON, hmsToSeconds } from '../utils/formatters'
-import { getInsights } from '../utils/storage'
 import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 import { parseYouTubeUrl, parseYouTubeStartSeconds } from '../utils/youtube'
 import { saveFileBlob, getFileBlob, deleteFileBlob } from '../utils/fileStore'
@@ -56,7 +55,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
 
   useEffect(() => {
     listRecords('analysis').then(setAnalyses).catch((e) => console.error('분석 불러오기 실패', e))
-    setInsights(getInsights())
+    listRecords('insight').then(setInsights).catch((e) => console.error('인사이트 불러오기 실패', e))
   }, [])
 
   useEffect(() => {
@@ -584,7 +583,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
               </button>
             </div>
             <p className="text-xs text-gray-500 mb-3">카드를 클릭하면 바로 아래에서 재생하며 이어서 확인할 수 있어요</p>
-            <div className="grid gap-3">
+            <div className="stagger grid gap-3">
               {analysesInFolder.map((analysis) => {
                 const isActive = analysis.source === 'youtube'
                   ? (sourceMode === 'youtube' && ytActiveAnalysis?.id === analysis.id)
@@ -593,9 +592,9 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                   <div
                     key={analysis.id}
                     onClick={() => handleLoadAnalysis(analysis)}
-                    className={`p-4 border rounded-2xl transition cursor-pointer ${
+                    className={`lift p-4 border rounded-2xl cursor-pointer ${
                       isActive
-                        ? 'border-brand bg-brand-light'
+                        ? 'border-brand bg-brand-light shadow-floating'
                         : 'border-white/10 hover:bg-surface-alt active:bg-white/10'
                     }`}
                   >
@@ -609,7 +608,8 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                             {analysis.source === 'youtube' ? `유튜브 · ${analysis.videoId}` : analysis.filename}
                           </h4>
                           {isActive && (
-                            <span className="shrink-0 text-[10px] font-bold text-brand bg-surface px-1.5 py-0.5 rounded-full">
+                            <span className="anim-pop shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-brand bg-surface px-1.5 py-0.5 rounded-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
                               재생 중
                             </span>
                           )}
@@ -713,7 +713,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
               </label>
 
               {needsReattach && selectedAnalysis && (
-                <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 space-y-3">
+                <div className="anim-pop mb-4 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 space-y-3">
                   <div className="flex items-start gap-2">
                     <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
                     <div className="min-w-0">
@@ -772,7 +772,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                     {file && (
                     <button
                       onClick={handleScrap}
-                      className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-xl transition"
+                      className="shine flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-xl transition active:scale-95"
                     >
                       <Bookmark size={16} />
                       스크랩 ({currentTime.toFixed(1)}초)
@@ -812,7 +812,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                       {scraps.length > 0 && (
                         <button
                           onClick={handleSaveAnalysis}
-                          className="w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-3 px-4 rounded-xl transition"
+                          className="shine glow-breathe w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-3 px-4 rounded-xl transition active:scale-95"
                         >
                           <Save size={16} />
                           분석 저장

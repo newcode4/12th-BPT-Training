@@ -61,3 +61,176 @@ textarea::placeholder {
     display: none;
   }
 }
+
+/* ==========================================================================
+   모션 시스템 — transform/opacity만 써서 모바일에서도 60fps로 돌아가게 한다
+   ========================================================================== */
+
+@keyframes rise {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes pop {
+  0%   { opacity: 0; transform: scale(0.85); }
+  60%  { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translate3d(0, 24px, 0) scale(0.96); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes sheen {
+  from { transform: translateX(-120%) skewX(-20deg); }
+  to   { transform: translateX(320%) skewX(-20deg); }
+}
+
+@keyframes glow-breathe {
+  0%, 100% { box-shadow: 0 8px 24px rgba(229, 37, 58, 0.30); }
+  50%      { box-shadow: 0 12px 38px rgba(229, 37, 58, 0.62); }
+}
+
+@keyframes aurora-drift {
+  0%   { transform: translate3d(-8%, -6%, 0) scale(1); }
+  50%  { transform: translate3d(8%, 6%, 0) scale(1.18); }
+  100% { transform: translate3d(-8%, -6%, 0) scale(1); }
+}
+
+@keyframes shimmer {
+  from { background-position: -320px 0; }
+  to   { background-position: 320px 0; }
+}
+
+@keyframes ring-pulse {
+  0%   { opacity: 0.55; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.85); }
+}
+
+@layer utilities {
+  .anim-rise { animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .anim-pop { animation: pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .anim-fade { animation: fade-in 0.3s ease-out both; }
+  .anim-modal { animation: modal-in 0.36s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+  /* 자식 요소가 차례로 올라오게 (목록·폼에 쓰면 고급스러워진다) */
+  .stagger > * { animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .stagger > *:nth-child(1) { animation-delay: 0.03s; }
+  .stagger > *:nth-child(2) { animation-delay: 0.08s; }
+  .stagger > *:nth-child(3) { animation-delay: 0.13s; }
+  .stagger > *:nth-child(4) { animation-delay: 0.18s; }
+  .stagger > *:nth-child(5) { animation-delay: 0.23s; }
+  .stagger > *:nth-child(6) { animation-delay: 0.28s; }
+  .stagger > *:nth-child(7) { animation-delay: 0.33s; }
+  .stagger > *:nth-child(8) { animation-delay: 0.38s; }
+  .stagger > *:nth-child(n + 9) { animation-delay: 0.42s; }
+
+  /* 카드: 살짝 떠오르고 테두리가 브랜드색으로 번진다 */
+  .lift {
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.28s ease, border-color 0.28s ease;
+    will-change: transform;
+  }
+  .lift:hover {
+    transform: translate3d(0, -3px, 0);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(229, 37, 58, 0.22);
+  }
+  .lift:active { transform: translate3d(0, 0, 0) scale(0.995); }
+
+  /* 주요 버튼 위로 빛이 한 번 훑고 지나간다 */
+  .shine { position: relative; overflow: hidden; isolation: isolate; }
+  .shine::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 45%;
+    background: linear-gradient(
+      100deg,
+      transparent,
+      rgba(255, 255, 255, 0.28),
+      transparent
+    );
+    transform: translateX(-120%) skewX(-20deg);
+    pointer-events: none;
+  }
+  .shine:hover::after { animation: sheen 0.85s ease-out; }
+  .shine-always::after { animation: sheen 2.6s ease-in-out 0.8s infinite; }
+
+  .glow-breathe { animation: glow-breathe 2.8s ease-in-out infinite; }
+
+  /* 로그인 화면 배경에서 천천히 흐르는 오로라 */
+  .aurora { position: relative; overflow: hidden; }
+  .aurora::before,
+  .aurora::after {
+    content: '';
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(90px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .aurora::before {
+    width: 62vmin; height: 62vmin;
+    top: -18vmin; left: -14vmin;
+    background: radial-gradient(circle, rgba(229, 37, 58, 0.55), transparent 68%);
+    animation: aurora-drift 14s ease-in-out infinite;
+  }
+  .aurora::after {
+    width: 54vmin; height: 54vmin;
+    bottom: -16vmin; right: -12vmin;
+    background: radial-gradient(circle, rgba(255, 138, 0, 0.36), transparent 68%);
+    animation: aurora-drift 18s ease-in-out infinite reverse;
+  }
+
+  /* 녹음/타이머가 도는 동안 퍼지는 파동 */
+  .pulse-ring { position: relative; }
+  .pulse-ring::before,
+  .pulse-ring::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 2px solid rgba(229, 37, 58, 0.7);
+    animation: ring-pulse 1.8s ease-out infinite;
+    pointer-events: none;
+  }
+  .pulse-ring::after { animation-delay: 0.9s; }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.03) 0%,
+      rgba(255, 255, 255, 0.09) 50%,
+      rgba(255, 255, 255, 0.03) 100%
+    );
+    background-size: 320px 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+
+  /* 그라데이션 글자 */
+  .text-gradient {
+    background: linear-gradient(100deg, #FF4D5F, #FF9A3D 55%, #FF4D5F);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* 모션을 줄이도록 설정한 사용자에게는 전부 끈다 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

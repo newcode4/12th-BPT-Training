@@ -1,6 +1,12 @@
 export function formatTime(seconds) {
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
+  const total = Math.max(0, Math.floor(seconds || 0))
+  const hours = Math.floor(total / 3600)
+  const mins = Math.floor((total % 3600) / 60)
+  const secs = total % 60
+  // 라이브 다시보기처럼 몇 시간짜리 영상은 시(時)까지 보여줘야 읽힌다
+  if (hours > 0) {
+    return `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  }
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 

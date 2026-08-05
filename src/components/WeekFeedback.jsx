@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { PenLine, Trash2 } from 'lucide-react'
 import { generateUUID } from '../utils/formatters'
-import { getFeedbackEntries, saveFeedbackEntry, deleteFeedbackEntry } from '../utils/storage'
+import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 
 const CATEGORIES = [
   { id: 'self', label: '셀프 피드백' },
@@ -12,12 +12,22 @@ export default function WeekFeedback({ week }) {
   const [entries, setEntries] = useState([])
   const [text, setText] = useState('')
   const [category, setCategory] = useState('self')
+  // 나의 피드백은 개인 기록이라 내가 쓴 것만 불러온다 (기기만 바뀌어도 그대로 보이게)
+  const author = localStorage.getItem('qa-author') || '익명'
 
   useEffect(() => {
-    setEntries(getFeedbackEntries(week))
+    let cancelled = false
+    setEntries([])
     setText('')
     setCategory('self')
-  }, [week])
+    listRecords('feedback', { week, author })
+      .then((rows) => {
+        if (cancelled) return
+        setEntries(rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
+      })
+      .catch(e => console.error('피드백 불러오기 실패', e))
+    return () => { cancelled = true }
+  }, [week, author])
 
   const handleAdd = () => {
     if (!text.trim()) return
@@ -26,16 +36,18 @@ export default function WeekFeedback({ week }) {
       week,
       category,
       text: text.trim(),
+      author,
       createdAt: new Date().toISOString(),
     }
-    saveFeedbackEntry(entry)
     setEntries([entry, ...entries])
     setText('')
+    putRecord('feedback', entry, { author, week })
+      .catch(e => console.error('피드백 저장 실패', e))
   }
 
   const handleDelete = (id) => {
-    deleteFeedbackEntry(id)
     setEntries(entries.filter((e) => e.id !== id))
+    removeRecord('feedback', id).catch(e => console.error('피드백 삭제 실패', e))
   }
 
   return (

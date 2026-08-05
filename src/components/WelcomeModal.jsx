@@ -37,22 +37,22 @@ export default function WelcomeModal({ onComplete }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-toss-bg flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-2xl shadow-xl max-w-md w-full p-6 md:p-8 border border-brand/30">
+    <div className="aurora fixed inset-0 bg-toss-bg flex items-center justify-center z-50 p-4">
+      <div className="anim-modal relative z-10 bg-surface/90 backdrop-blur-xl rounded-2xl shadow-xl max-w-md w-full p-6 md:p-8 border border-brand/30">
         <div className="flex justify-center mb-4">
-          <div className="w-16 h-16 rounded-full bg-brand/20 flex items-center justify-center">
+          <div className="anim-pop glow-breathe w-16 h-16 rounded-full bg-brand/20 flex items-center justify-center">
             <PartyPopper size={32} className="text-brand" />
           </div>
         </div>
 
-        <div className="text-center space-y-1 mb-6">
+        <div className="stagger text-center space-y-1 mb-6">
           <p className="text-2xl md:text-3xl font-black text-brand leading-tight">
             할수있다!!
           </p>
           <p className="text-xl md:text-2xl font-extrabold text-white">
             우리는!
           </p>
-          <p className="text-2xl md:text-3xl font-black bg-gradient-to-r from-brand to-orange-400 bg-clip-text text-transparent">
+          <p className="text-2xl md:text-3xl font-black text-gradient shine-always">
             레전드 12기!! 화이팅!!
           </p>
         </div>
@@ -89,7 +89,7 @@ export default function WelcomeModal({ onComplete }) {
         <button
           onClick={handleRegister}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-extrabold py-3.5 rounded-xl transition text-lg shadow-floating"
+          className="shine glow-breathe w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-extrabold py-3.5 rounded-xl transition-transform active:scale-95 text-lg shadow-floating"
         >
           {loading && <Loader2 size={18} className="animate-spin" />}
           등록하고 시작하기

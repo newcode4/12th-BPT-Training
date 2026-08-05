@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ThumbsUp, X, Lightbulb } from 'lucide-react'
 import { generateUUID } from '../utils/formatters'
-import { saveInsight, updateInsight, deleteInsight } from '../utils/storage'
+import { putRecord, removeRecord } from '../utils/cloudStore'
 
 export default function WeekInsights({ week, insights, setInsights, author }) {
   const [newInsight, setNewInsight] = useState('')
@@ -20,22 +20,24 @@ export default function WeekInsights({ week, insights, setInsights, author }) {
       votes: 0,
       createdAt: new Date().toISOString()
     }
-    saveInsight(insight)
     setInsights([...insights, insight])
     setNewInsight('')
+    putRecord('insight', insight, { author: insight.author, week })
+      .catch(e => console.error('인사이트 저장 실패', e))
   }
 
   const handleVote = (id) => {
     const target = insights.find(i => i.id === id)
     if (!target) return
     const updated = { ...target, votes: target.votes + 1 }
-    updateInsight(id, updated)
     setInsights(insights.map(i => i.id === id ? updated : i))
+    putRecord('insight', updated, { author: updated.author, week: updated.week })
+      .catch(e => console.error('투표 저장 실패', e))
   }
 
   const handleDelete = (id) => {
-    deleteInsight(id)
     setInsights(insights.filter(i => i.id !== id))
+    removeRecord('insight', id).catch(e => console.error('인사이트 삭제 실패', e))
   }
 
   return (

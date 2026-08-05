@@ -4,7 +4,7 @@ import { getRandomItem } from '../utils/formatters'
 import { supabase, supabaseConfigured } from '../utils/supabase'
 import { WEEKS } from '../utils/weeks'
 import { TOPICS, parseTags } from '../utils/qaTags'
-import { getScript } from '../utils/storage'
+import { listRecords } from '../utils/cloudStore'
 import ScriptPracticeModal from '../components/ScriptPracticeModal'
 
 function Chip({ active, onClick, children }) {
@@ -31,6 +31,19 @@ export default function PracticeRoom() {
   const [topicFilter, setTopicFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [practiceQuestion, setPracticeQuestion] = useState(null)
+  // questionId -> { id, text } (내가 쓴 스크립트만)
+  const [scripts, setScripts] = useState({})
+  const author = localStorage.getItem('qa-author') || '익명'
+
+  useEffect(() => {
+    listRecords('script', { author })
+      .then((rows) => {
+        const map = {}
+        for (const r of rows) if (r.questionId) map[r.questionId] = { id: r.id, text: r.text }
+        setScripts(map)
+      })
+      .catch(e => console.error('스크립트 불러오기 실패', e))
+  }, [author])
 
   useEffect(() => {
     if (!supabaseConfigured) {
@@ -90,7 +103,7 @@ export default function PracticeRoom() {
         <button
           onClick={handleRandom}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-bold py-4 rounded-xl transition active:scale-95 shadow-floating"
+          className="shine glow-breathe w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-bold py-4 rounded-xl transition active:scale-95 shadow-floating"
         >
           {loading ? <Loader2 size={17} className="animate-spin" /> : <Shuffle size={17} />}
           랜덤으로 하나 뽑기
@@ -139,14 +152,14 @@ export default function PracticeRoom() {
           <p className="text-sm text-gray-500">{loadError}</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="stagger space-y-2">
           <p className="text-sm text-gray-400 px-1">{visible.length}개의 돌발질문</p>
           {visible.map((q) => {
-            const hasScript = Boolean(getScript(q.id))
+            const hasScript = Boolean(scripts[q.id]?.text)
             return (
             <div
               key={q.id}
-              className="p-4 bg-surface rounded-2xl border border-white/10 shadow-card"
+              className="lift p-4 bg-surface rounded-2xl border border-white/10 shadow-card"
             >
               <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-brand-light text-brand">
@@ -195,6 +208,16 @@ export default function PracticeRoom() {
           questionId={practiceQuestion.id}
           questionTitle={practiceQuestion.title}
           questionContent={practiceQuestion.content}
+          existing={scripts[practiceQuestion.id]}
+          author={author}
+          onSaved={(questionId, record) =>
+            setScripts((prev) => {
+              const next = { ...prev }
+              if (record) next[questionId] = { id: record.id, text: record.text }
+              else delete next[questionId]
+              return next
+            })
+          }
           onClose={() => setPracticeQuestion(null)}
         />
       )}

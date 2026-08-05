@@ -61,11 +61,11 @@ export default function AnswerPracticeModal({ answerContent, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      className="anim-fade fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-surface rounded-2xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto"
+        className="anim-modal bg-surface rounded-2xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
@@ -86,14 +86,18 @@ export default function AnswerPracticeModal({ answerContent, onClose }) {
         </div>
 
         <div className="text-center">
-          <div className="text-5xl font-bold text-brand font-mono mb-4">
+          <div
+            className={`text-5xl font-bold text-brand font-mono mb-4 transition-all duration-300 ${
+              isRecording ? 'scale-110 drop-shadow-[0_0_22px_rgba(229,37,58,0.7)]' : ''
+            }`}
+          >
             {formatTime(timeLeft)}
           </div>
 
           {!isRecording && !recordedURL && (
             <button
               onClick={handleStart}
-              className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark text-white font-bold py-3 px-6 rounded-xl text-lg transition"
+              className="shine glow-breathe w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark text-white font-bold py-3 px-6 rounded-xl text-lg transition active:scale-95"
             >
               <Mic size={18} />
               녹음 시작
@@ -104,12 +108,15 @@ export default function AnswerPracticeModal({ answerContent, onClose }) {
             <>
               <button
                 onClick={handleStop}
-                className="w-full flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-xl transition"
+                className="pulse-ring w-full flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-xl transition active:scale-95"
               >
                 <Square size={16} fill="currentColor" />
                 녹음 종료
               </button>
-              <p className="mt-3 text-brand font-bold animate-pulse">녹음 중...</p>
+              <p className="mt-3 flex items-center justify-center gap-2 text-brand font-bold">
+                <span className="w-2 h-2 rounded-full bg-brand animate-pulse" />
+                녹음 중...
+              </p>
             </>
           )}
 

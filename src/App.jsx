@@ -91,7 +91,8 @@ export default function App() {
         setCurrentPage={setCurrentPage}
         onOpenProfile={() => setShowProfile(true)}
       />
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
+      {/* key를 바꿔 페이지가 바뀔 때마다 등장 모션이 다시 돈다 */}
+      <main key={currentPage} className="anim-rise flex-1 max-w-5xl w-full mx-auto px-4 py-6">
         {renderPage()}
       </main>
       <Footer />
