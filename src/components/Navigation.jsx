@@ -1,0 +1,104 @@
+import { Video, MessageCircle, Mic, Rocket, User, PartyPopper } from 'lucide-react'
+
+const navItems = [
+  { id: 'analysis', label: '시뮬레이션 분석실', icon: Video },
+  { id: 'qa', label: 'Q&A 커뮤니티', icon: MessageCircle },
+  { id: 'practice', label: '돌발 연습실', icon: Mic },
+]
+
+const SIMULATOR_URL = 'https://azuremooni.github.io/businesspt-simulator/'
+
+export default function Navigation({ currentPage, setCurrentPage, onOpenProfile }) {
+  return (
+    <>
+      {/* 상단 바 */}
+      <nav className="sticky top-0 z-30 bg-surface/90 backdrop-blur border-b border-white/10">
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="flex items-center justify-between h-14">
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                onClick={() => setCurrentPage('analysis')}
+                className="text-lg md:text-xl font-extrabold text-brand truncate tracking-tight hover:opacity-80 transition"
+              >
+                PT 시뮬레이션
+              </button>
+              <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold bg-gradient-to-r from-brand to-orange-500 text-white px-2 sm:px-2.5 py-1 rounded-full whitespace-nowrap">
+                <PartyPopper size={12} className="shrink-0" />
+                레전드 12기 화이팅
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <div className="hidden md:flex gap-1 mr-1">
+                {navItems.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setCurrentPage(item.id)}
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition ${
+                        currentPage === item.id
+                          ? 'bg-brand text-white'
+                          : 'text-gray-400 hover:bg-white/10'
+                      }`}
+                    >
+                      <Icon size={16} />
+                      {item.label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <a
+                href={SIMULATOR_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="시뮬레이션 바로가기"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-surface-alt hover:bg-brand-light text-gray-400 hover:text-brand transition"
+              >
+                <Rocket size={17} />
+              </a>
+              <button
+                onClick={onOpenProfile}
+                title="내 프로필"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-surface-alt hover:bg-brand-light text-gray-400 hover:text-brand transition"
+              >
+                <User size={17} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* 모바일 하단 탭바 */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-white/10 grid grid-cols-3 pb-[env(safe-area-inset-bottom)]">
+        {navItems.map((item) => {
+          const Icon = item.icon
+          return (
+            <button
+              key={item.id}
+              onClick={() => setCurrentPage(item.id)}
+              className={`flex flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] font-bold transition ${
+                currentPage === item.id ? 'text-brand' : 'text-gray-500'
+              }`}
+            >
+              <Icon size={20} />
+              {item.label}
+            </button>
+          )
+        })}
+      </nav>
+
+      {/* 시뮬레이션 바로가기 플로팅 버튼 */}
+      <a
+        href={SIMULATOR_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="시뮬레이션 바로가기"
+        className="fixed bottom-36 md:bottom-24 right-4 md:right-8 z-20 w-12 h-12 flex items-center justify-center rounded-full bg-surface border border-white/10 shadow-card hover:scale-105 active:scale-95 transition text-gray-300"
+      >
+        <Rocket size={20} />
+      </a>
+    </>
+  )
+}
