@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ThumbsUp, X, Lightbulb } from 'lucide-react'
 import { generateUUID } from '../utils/formatters'
 import { putRecord, removeRecord } from '../utils/cloudStore'
+import { isAdminMode } from '../utils/admin'
 
 export default function WeekInsights({ week, insights, setInsights, author }) {
   const [newInsight, setNewInsight] = useState('')
@@ -85,12 +86,14 @@ export default function WeekInsights({ week, insights, setInsights, author }) {
                 <ThumbsUp size={12} />
                 {insight.votes}
               </button>
-              <button
-                onClick={() => handleDelete(insight.id)}
-                className="text-gray-600 hover:text-red-500 px-1"
-              >
-                <X size={14} />
-              </button>
+              {(insight.author === author || isAdminMode()) && (
+                <button
+                  onClick={() => handleDelete(insight.id)}
+                  className="text-gray-600 hover:text-red-500 px-1"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
           </div>
         ))}

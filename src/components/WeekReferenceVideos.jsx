@@ -88,7 +88,8 @@ function ReferenceVideoCard({ video }) {
   useEffect(() => {
     setReady(false)
     setScraps([])
-    listRecords('ref_scrap')
+    // 예시 영상 스크랩은 개인 메모라 본인 것만 불러온다 (다른 사람에게 보이거나 지워지면 안 됨)
+    listRecords('ref_scrap', { author })
       .then((rows) => setScraps(
         rows.filter(s => s.videoId === video.videoId).sort((a, b) => a.timestamp - b.timestamp)
       ))

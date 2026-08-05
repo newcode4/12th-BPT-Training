@@ -18,9 +18,11 @@ export default function Navigation({ currentPage, setCurrentPage, onOpenProfile,
             <div className="flex items-center gap-2 min-w-0">
               <button
                 onClick={() => setCurrentPage('analysis')}
-                className="text-base md:text-xl font-extrabold text-brand shrink-0 tracking-tight hover:opacity-80 transition"
+                title="12기 BPT 성장 커뮤니티"
+                className="text-base md:text-xl font-extrabold text-brand shrink-0 tracking-tight hover:opacity-80 transition whitespace-nowrap"
               >
-                PT 시뮬레이션
+                <span className="sm:hidden">BPT 성장 커뮤니티</span>
+                <span className="hidden sm:inline">12기 BPT 성장 커뮤니티</span>
               </button>
               <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold bg-gradient-to-r from-brand to-orange-500 text-white px-2 sm:px-2.5 py-1 rounded-full whitespace-nowrap overflow-hidden">
                 <PartyPopper size={12} className="shrink-0" />

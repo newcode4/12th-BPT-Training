@@ -12,10 +12,12 @@ function DeviceLimitControl() {
   }, [])
 
   const handleChange = async (next) => {
+    const prev = limit
     setLimit(next)
     try {
       await setDeviceLimit(next)
     } catch (e) {
+      setLimit(prev)
       alert('설정 저장에 실패했어요: ' + e.message)
     }
   }
