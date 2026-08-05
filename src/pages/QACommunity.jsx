@@ -72,6 +72,7 @@ export default function QACommunity({ author, onLogout }) {
   const [view, setView] = useState('list') // 'list' | 'write' | 'detail'
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [topicFilter, setTopicFilter] = useState('all')
+  const [weekFilter, setWeekFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState('newest')
   const [selectedQuestion, setSelectedQuestion] = useState(null)
@@ -342,6 +343,9 @@ export default function QACommunity({ author, onLogout }) {
     if (topicFilter !== 'all') {
       list = list.filter(q => q.topic === topicFilter)
     }
+    if (weekFilter !== 'all') {
+      list = list.filter(q => q.week === weekFilter)
+    }
     const q = searchQuery.trim().toLowerCase()
     if (q) {
       list = list.filter((question) => {
@@ -469,12 +473,26 @@ export default function QACommunity({ author, onLogout }) {
                 <Chip
                   key={c.id}
                   active={categoryFilter === c.id}
-                  onClick={() => { setCategoryFilter(c.id); setTopicFilter('all') }}
+                  onClick={() => { setCategoryFilter(c.id); setTopicFilter('all'); setWeekFilter('all') }}
                 >
                   {c.label}
                 </Chip>
               ))}
             </div>
+
+            {/* 돌발질문 주차 필터 */}
+            {categoryFilter !== 'general' && (
+              <div className="flex gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
+                <Chip active={weekFilter === 'all'} onClick={() => setWeekFilter('all')} className="!text-xs !py-1.5">
+                  전체 주차
+                </Chip>
+                {WEEKS.map((w) => (
+                  <Chip key={w.id} active={weekFilter === w.id} onClick={() => setWeekFilter(w.id)} className="!text-xs !py-1.5">
+                    {w.label}
+                  </Chip>
+                ))}
+              </div>
+            )}
 
             {/* 돌발질문 유형 필터 */}
             {categoryFilter !== 'general' && usedTopics.length > 0 && (
