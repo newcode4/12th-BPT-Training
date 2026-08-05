@@ -177,19 +177,19 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
     }
   }
 
+  // 주차 필터를 바꾸면 영상 영역(mountRef)이 DOM에서 사라졌다가 다시 생기는데,
+  // 그때 예전 플레이어 인스턴스를 loadVideoById로 재사용하면 이미 떨어져 나간
+  // 옛 노드를 계속 붙잡고 있어 화면이 까맣게 나온다. 바뀔 때마다 새로 만든다.
   useEffect(() => {
     if (!activeVideoId) return
     let cancelled = false
     loadYouTubeAPI().then((YT) => {
       if (cancelled || !mountRef.current) return
-      if (playerRef.current) {
-        playerRef.current.loadVideoById(activeVideoId)
-      } else {
-        playerRef.current = new YT.Player(mountRef.current, {
-          videoId: activeVideoId,
-          playerVars: { rel: 0 },
-        })
-      }
+      playerRef.current?.destroy?.()
+      playerRef.current = new YT.Player(mountRef.current, {
+        videoId: activeVideoId,
+        playerVars: { rel: 0 },
+      })
     })
     return () => { cancelled = true }
   }, [activeVideoId])
