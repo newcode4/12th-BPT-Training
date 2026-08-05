@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Video, Bookmark, RotateCcw, Save, Archive, Download, Trash2,
   ChevronDown, ChevronRight, Sparkles, ArrowUpDown, Upload, MonitorPlay, Folder,
-  ShieldCheck, Plus, X, AlertCircle
+  ShieldCheck, Plus, X, AlertCircle, Pencil
 } from 'lucide-react'
 import { generateUUID, formatTime, downloadJSON, hmsToSeconds } from '../utils/formatters'
 import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
@@ -18,11 +18,12 @@ import WeekReferenceVideos from '../components/WeekReferenceVideos'
 import AllReplaysArchive from '../components/AllReplaysArchive'
 import WeekInsights from '../components/WeekInsights'
 import WeekFeedback from '../components/WeekFeedback'
+import FeedbackDigest from '../components/FeedbackDigest'
 import { WEEKS } from '../utils/weeks'
 
 const FULL_RECORDING_FOLDER = '전체 녹음'
 
-export default function VideoAnalysisRoom({ onAskQuestion }) {
+export default function VideoAnalysisRoom() {
   const [selectedWeek, setSelectedWeek] = useState('0')
   const [selectedFolder, setSelectedFolder] = useState(FULL_RECORDING_FOLDER)
   const [sourceMode, setSourceMode] = useState('file') // 'file' | 'youtube'
@@ -180,6 +181,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
     const newScrap = {
       id: generateUUID(),
       timestamp: currentTime,
+      title: '',
       screenAnalysis: '',
       conceptAnalysis: '',
       createdAt: new Date().toISOString()
@@ -188,9 +190,9 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
     setScraps([...scraps, newScrap].sort((a, b) => a.timestamp - b.timestamp))
   }
 
-  const updateScrap = (id, screenAnalysis, conceptAnalysis) => {
+  const updateScrap = (id, screenAnalysis, conceptAnalysis, title) => {
     setScraps(scraps.map(s =>
-      s.id === id ? { ...s, screenAnalysis, conceptAnalysis } : s
+      s.id === id ? { ...s, screenAnalysis, conceptAnalysis, title } : s
     ))
   }
 
@@ -284,6 +286,20 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
     downloadJSON(analysis, `analysis-${analysis.filename || analysis.videoId}-${new Date().getTime()}.json`)
   }
 
+  const handleRenameAnalysis = async (analysis) => {
+    const next = window.prompt('이 분석의 제목을 입력하세요 (비워두면 원래 파일명이 보여요)', analysis.title || '')
+    if (next === null) return
+    const updated = { ...analysis, title: next.trim() }
+    setAnalyses(analyses.map(a => a.id === updated.id ? updated : a))
+    if (selectedAnalysis?.id === updated.id) setSelectedAnalysis(updated)
+    if (ytActiveAnalysis?.id === updated.id) setYtActiveAnalysis(updated)
+    try {
+      await putRecord('analysis', updated, { author: updated.author || author, week: updated.week })
+    } catch (e) {
+      alert('제목 저장에 실패했어요: ' + e.message)
+    }
+  }
+
   const handleDeleteAnalysis = async (id) => {
     if (!confirm('정말로 삭제하시겠습니까?')) return
     deleteFileBlob(id).catch(() => {})
@@ -355,6 +371,29 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
       .catch(e => alert('유튜브 링크 저장에 실패했어요: ' + e.message))
   }
 
+  // 전체 라이브 다시보기에서 바로 "내 시뮬레이션 분석"으로 가져오기
+  const handleAddReplayToAnalysis = (replay) => {
+    const analysis = {
+      id: generateUUID(),
+      week: selectedWeek,
+      folder: selectedFolder,
+      source: 'youtube',
+      videoId: replay.videoId,
+      startSeconds: 0,
+      scraps: [],
+      author,
+      uploadedAt: new Date().toISOString(),
+    }
+    setAnalyses([...analyses, analysis])
+    setSourceMode('youtube')
+    setYtActiveAnalysis(analysis)
+    putRecord('analysis', analysis, { author, week: selectedWeek })
+      .catch(e => alert('내 분석에 추가하지 못했어요: ' + e.message))
+    requestAnimationFrame(() => {
+      playerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+
   const handleYtUrlChange = (url) => {
     setYtUrlInput(url)
     const startFromUrl = parseYouTubeStartSeconds(url.trim())
@@ -383,16 +422,8 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
       .catch(e => alert('스크랩 저장에 실패했어요: ' + e.message))
   }
 
-  const handleAskAboutScrap = (scrap) => {
-    if (!onAskQuestion) return
-    const weekLabel = WEEKS.find(w => w.id === selectedWeek)?.label || ''
-    const context = `[${weekLabel} · ${selectedFolder} · ${selectedAnalysis?.filename || ''} @ ${formatTime(scrap.timestamp)}]`
-    const memo = [scrap.screenAnalysis, scrap.conceptAnalysis].filter(Boolean).join('\n')
-    onAskQuestion({
-      title: `${context} 이 구간에서 막혔어요`,
-      content: memo ? `${context}\n\n${memo}` : `${context}\n\n`
-    })
-  }
+  const analysisDisplayName = (analysis) =>
+    analysis.title || (analysis.source === 'youtube' ? `유튜브 · ${analysis.videoId}` : analysis.filename)
 
   const countByWeek = (weekId) => analyses.filter(a => (a.week || '0') === weekId).length
   const countByFolder = (folder) => analyses.filter(a => (a.week || '0') === selectedWeek && (a.folder || FULL_RECORDING_FOLDER) === folder).length
@@ -426,6 +457,9 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
   )
 
   return (
+    <div className="space-y-6">
+      <FeedbackDigest onJumpToWeek={(week) => { setSelectedWeek(week); setNotesOpen(true) }} />
+
     <div className="flex flex-col md:flex-row gap-6">
       {/* 좌측 사이드바 (데스크톱 고정, 주차 + 세부 폴더 트리) */}
       <aside className="hidden md:block md:w-64 shrink-0">
@@ -565,7 +599,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
 
         {/* 예시 시뮬레이션 영상 (유튜브 스크랩) */}
         <WeekReferenceVideos week={selectedWeek} />
-        <AllReplaysArchive />
+        <AllReplaysArchive onAddToAnalysis={handleAddReplayToAnalysis} />
 
         {/* 저장된 분석 목록 (현재 주차 + 폴더) - 관리하기 편하도록 업로드보다 위에 배치 */}
         {analysesInFolder.length > 0 && (
@@ -601,13 +635,22 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                   >
                     <div className="flex justify-between items-start gap-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
                           {analysis.source === 'youtube'
                             ? <MonitorPlay size={14} className="text-red-500 shrink-0" />
                             : <Upload size={14} className="text-gray-500 shrink-0" />}
-                          <h4 className="font-bold truncate">
-                            {analysis.source === 'youtube' ? `유튜브 · ${analysis.videoId}` : analysis.filename}
+                          <h4 className="font-bold truncate min-w-0" title={analysisDisplayName(analysis)}>
+                            {analysisDisplayName(analysis)}
                           </h4>
+                          {(analysis.author === author || admin) && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleRenameAnalysis(analysis) }}
+                              className="shrink-0 text-gray-500 hover:text-brand"
+                              title="제목 수정"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                          )}
                           {isActive && (
                             <span className="anim-pop shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-brand bg-surface px-1.5 py-0.5 rounded-full">
                               <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
@@ -790,9 +833,20 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
 
                   {selectedAnalysis && (
                     <>
-                      <div className="bg-brand-light p-3 rounded-xl flex items-center justify-between">
-                        <h4 className="font-bold truncate">{selectedAnalysis.filename}</h4>
-                        <span className="text-sm text-gray-400 shrink-0 ml-2">스크랩 {scraps.length}개</span>
+                      <div className="bg-brand-light p-3 rounded-xl flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <h4 className="font-bold truncate min-w-0" title={analysisDisplayName(selectedAnalysis)}>
+                            {analysisDisplayName(selectedAnalysis)}
+                          </h4>
+                          <button
+                            onClick={() => handleRenameAnalysis(selectedAnalysis)}
+                            className="shrink-0 text-gray-500 hover:text-brand"
+                            title="제목 수정"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        </div>
+                        <span className="text-sm text-gray-400 shrink-0">스크랩 {scraps.length}개</span>
                       </div>
 
                       <div ref={scrapListRef} className="space-y-3 max-h-[28rem] overflow-y-auto pr-1">
@@ -802,7 +856,6 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                               scrap={scrap}
                               onUpdate={updateScrap}
                               onDelete={deleteScrap}
-                              onAskQuestion={handleAskAboutScrap}
                               onPlay={handlePlayScrap}
                               onSetEnd={handleSetScrapEnd}
                             />
@@ -913,6 +966,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
           )}
         </div>
       </div>
+    </div>
     </div>
   )
 }

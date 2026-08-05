@@ -1,14 +1,21 @@
 import { useState } from 'react'
-import { HelpCircle, X, Play, Flag, Repeat } from 'lucide-react'
+import { X, Play, Flag, Repeat } from 'lucide-react'
 import { formatTime, formatDate } from '../utils/formatters'
 
-export default function ScrapEditor({ scrap, onUpdate, onDelete, onAskQuestion, onPlay, onSetEnd }) {
+export default function ScrapEditor({ scrap, onUpdate, onDelete, onPlay, onSetEnd }) {
+  const [title, setTitle] = useState(scrap.title || '')
   const [note, setNote] = useState(scrap.screenAnalysis || '')
+
+  const handleTitleChange = (e) => {
+    const value = e.target.value
+    setTitle(value)
+    onUpdate(scrap.id, note, '', value)
+  }
 
   const handleChange = (e) => {
     const value = e.target.value
     setNote(value)
-    onUpdate(scrap.id, value, '')
+    onUpdate(scrap.id, value, '', title)
   }
 
   const hasRange = scrap.endTime != null && scrap.endTime > scrap.timestamp
@@ -48,6 +55,14 @@ export default function ScrapEditor({ scrap, onUpdate, onDelete, onAskQuestion, 
         <p className="text-[11px] text-gray-500 mb-2">이 구간을 반복 재생해요 — 다시 클릭하면 계속 반복돼요</p>
       )}
 
+      <input
+        type="text"
+        value={title}
+        onChange={handleTitleChange}
+        placeholder="소제목 (예: 가격 질문 대처)"
+        className="w-full text-sm font-bold p-2.5 mb-2 border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+      />
+
       <textarea
         value={note}
         onChange={handleChange}
@@ -58,15 +73,6 @@ export default function ScrapEditor({ scrap, onUpdate, onDelete, onAskQuestion, 
 
       <div className="flex items-center justify-between mt-2">
         <p className="text-xs text-gray-500">{formatDate(scrap.createdAt)}</p>
-        {onAskQuestion && (
-          <button
-            onClick={() => onAskQuestion(scrap)}
-            className="flex items-center gap-1 text-xs font-bold text-brand bg-brand-light hover:bg-red-500/20 px-2.5 py-1 rounded-lg transition"
-          >
-            <HelpCircle size={12} />
-            바로 질문하기
-          </button>
-        )}
       </div>
     </div>
   )

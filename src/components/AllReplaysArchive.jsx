@@ -1,9 +1,39 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, PlayCircle, ShieldCheck, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, PlayCircle, ShieldCheck, Plus, Trash2, FolderPlus } from 'lucide-react'
 import { loadYouTubeAPI, parseYouTubeUrl } from '../utils/youtube'
 import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 import { isAdminMode } from '../utils/admin'
 import { generateUUID } from '../utils/formatters'
+
+// 회차 날짜(YYMMDD)를 주차로 매핑한다. 정규 커리큘럼 시작일 기준.
+function dateToWeek(yymmdd) {
+  const d = Number(yymmdd)
+  if (d < 260723) return '0'
+  if (d < 260727) return '1'
+  if (d < 260729) return '2'
+  if (d < 260803) return '3'
+  return '4'
+}
+
+const WEEK_FILTERS = [
+  { id: 'all', label: '전체보기' },
+  { id: '0', label: '0주차' },
+  { id: '1', label: '1주차' },
+  { id: '2', label: '2주차' },
+  { id: '3', label: '3주차' },
+  { id: '0-3', label: '0~3주차' },
+  { id: '4', label: '4주차' },
+  { id: '0-4', label: '0~4주차' },
+]
+
+function matchesWeekFilter(filterId, week) {
+  if (filterId === 'all') return true
+  if (filterId.includes('-')) {
+    const [lo, hi] = filterId.split('-').map(Number)
+    return Number(week) >= lo && Number(week) <= hi
+  }
+  return week === filterId
+}
 
 // 전체 라이브 다시보기 (날짜순 원본 아카이브) - YYMMDD, videoId
 // 관리자가 추가하는 회차는 서버(records, kind: replay)에 쌓인다
@@ -87,10 +117,11 @@ function AdminAddReplayForm({ onAdded }) {
   )
 }
 
-export default function AllReplaysArchive() {
+export default function AllReplaysArchive({ onAddToAnalysis }) {
   const [open, setOpen] = useState(false)
   const [activeVideoId, setActiveVideoId] = useState(null)
   const [adminReplays, setAdminReplays] = useState([])
+  const [weekFilter, setWeekFilter] = useState('all')
   const mountRef = useRef(null)
   const playerRef = useRef(null)
   const admin = isAdminMode()
@@ -103,7 +134,9 @@ export default function AllReplaysArchive() {
   const curatedFiltered = CURATED_REPLAYS.filter(
     (c) => !adminReplays.some((a) => a.date === c.date)
   )
-  const replays = [...adminReplays, ...curatedFiltered].sort((a, b) => b.date.localeCompare(a.date))
+  const allReplays = [...adminReplays, ...curatedFiltered].sort((a, b) => b.date.localeCompare(a.date))
+  const replays = allReplays.filter((r) => matchesWeekFilter(weekFilter, dateToWeek(r.date)))
+  const activeReplay = replays.find((r) => r.videoId === activeVideoId) || allReplays.find((r) => r.videoId === activeVideoId)
 
   const handleDelete = (id) => {
     setAdminReplays(adminReplays.filter((r) => r.id !== id))
@@ -150,6 +183,23 @@ export default function AllReplaysArchive() {
             <AdminAddReplayForm onAdded={(r) => setAdminReplays([r, ...adminReplays])} />
           )}
 
+          {/* 주차 필터 */}
+          <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
+            {WEEK_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setWeekFilter(f.id)}
+                className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                  weekFilter === f.id
+                    ? 'bg-brand text-white'
+                    : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
           {/* 날짜 토글 필터 */}
           <div className="flex flex-wrap gap-2">
             {replays.map((r) => (
@@ -178,8 +228,19 @@ export default function AllReplaysArchive() {
           </div>
 
           {activeVideoId ? (
-            <div className="aspect-video rounded-xl overflow-hidden bg-black">
-              <div ref={mountRef} className="w-full h-full" />
+            <div className="space-y-2">
+              <div className="aspect-video rounded-xl overflow-hidden bg-black">
+                <div ref={mountRef} className="w-full h-full" />
+              </div>
+              {onAddToAnalysis && activeReplay && (
+                <button
+                  onClick={() => onAddToAnalysis(activeReplay)}
+                  className="w-full flex items-center justify-center gap-1.5 bg-brand-light hover:bg-red-500/20 text-brand font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
+                >
+                  <FolderPlus size={15} />
+                  이 회차 내 시뮬레이션 분석에 추가
+                </button>
+              )}
             </div>
           ) : (
             <p className="text-xs text-gray-500 text-center py-4">

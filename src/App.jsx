@@ -13,7 +13,6 @@ const HEARTBEAT_MS = 30 * 1000
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('analysis')
-  const [pendingDraft, setPendingDraft] = useState(null)
   const [showProfile, setShowProfile] = useState(false)
   const [session, setSession] = useState(() => getSession())
   const [checkingSession, setCheckingSession] = useState(true)
@@ -47,28 +46,16 @@ export default function App() {
     return () => clearInterval(timer)
   }, [])
 
-  const handleAskQuestion = (draft) => {
-    setPendingDraft(draft)
-    setCurrentPage('qa')
-  }
-
   const renderPage = () => {
     switch (currentPage) {
       case 'analysis':
-        return <VideoAnalysisRoom onAskQuestion={handleAskQuestion} />
+        return <VideoAnalysisRoom />
       case 'qa':
-        return (
-          <QACommunity
-            author={author}
-            onLogout={() => setSession(null)}
-            pendingDraft={pendingDraft}
-            onDraftConsumed={() => setPendingDraft(null)}
-          />
-        )
+        return <QACommunity author={author} onLogout={() => setSession(null)} />
       case 'practice':
         return <PracticeRoom />
       default:
-        return <VideoAnalysisRoom onAskQuestion={handleAskQuestion} />
+        return <VideoAnalysisRoom />
     }
   }
 
@@ -96,7 +83,7 @@ export default function App() {
         {renderPage()}
       </main>
       <Footer />
-      <SimulatorShortcut />
+      <SimulatorShortcut raised={currentPage === 'qa'} />
 
       {showProfile && (
         <ProfileModal

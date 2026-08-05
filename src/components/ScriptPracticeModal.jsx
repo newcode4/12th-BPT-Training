@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { PenLine, X, Check, Play, Pause, RotateCcw, Copy } from 'lucide-react'
+import { PenLine, X, Check, Play, Pause, RotateCcw, Copy, EyeOff, Eye } from 'lucide-react'
 import { formatTime, generateUUID } from '../utils/formatters'
 import { putRecord, removeRecord } from '../utils/cloudStore'
 
@@ -7,8 +7,11 @@ import { putRecord, removeRecord } from '../utils/cloudStore'
 const CHARS_PER_MINUTE = 320
 
 export default function ScriptPracticeModal({
-  questionId, questionTitle, questionContent, existing, author, onSaved, onClose,
+  questionId, questionTitle, questionContent, existing, author, blind = false, onSaved, onClose,
 }) {
+  const hasExisting = Boolean(existing?.text)
+  // 랜덤 뽑기의 목적은 "안 보고 말하기" — 이미 써둔 원고가 있어도 처음엔 가려둔다
+  const [revealed, setRevealed] = useState(!(blind && hasExisting))
   const [script, setScript] = useState(existing?.text || '')
   const [savedAt, setSavedAt] = useState(null)
   const [timeLeft, setTimeLeft] = useState(60)
@@ -94,28 +97,45 @@ export default function ScriptPracticeModal({
           )}
         </div>
 
-        {/* 스크립트 작성 */}
-        <textarea
-          ref={textareaRef}
-          value={script}
-          onChange={(e) => { dirtyRef.current = true; setScript(e.target.value) }}
-          placeholder={'이 질문에 어떻게 답할지 그대로 적어보세요.\n\n예)\n먼저 공감 →  기준 설명 →  대안 제시'}
-          rows="9"
-          className="w-full p-3.5 bg-surface-alt border border-white/10 rounded-xl text-base leading-relaxed focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-        />
+        {/* 스크립트 작성 / 블라인드 연습 */}
+        {revealed ? (
+          <>
+            <textarea
+              ref={textareaRef}
+              value={script}
+              onChange={(e) => { dirtyRef.current = true; setScript(e.target.value) }}
+              placeholder={'이 질문에 어떻게 답할지 그대로 적어보세요.\n\n예)\n먼저 공감 →  기준 설명 →  대안 제시'}
+              rows="9"
+              className="w-full p-3.5 bg-surface-alt border border-white/10 rounded-xl text-base leading-relaxed focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+            />
 
-        <div className="flex items-center justify-between gap-2 mt-2 mb-4 text-[11px]">
-          <span className="text-gray-500">
-            {charCount}자 · 말하면 약 {formatTime(estimatedSeconds)}
-            {overOneMinute && <span className="text-amber-400 font-bold"> (1분 초과)</span>}
-          </span>
-          {savedAt && (
-            <span className="flex items-center gap-1 text-emerald-400 font-bold">
-              <Check size={11} />
-              자동 저장됨
-            </span>
-          )}
-        </div>
+            <div className="flex items-center justify-between gap-2 mt-2 mb-4 text-[11px]">
+              <span className="text-gray-500">
+                {charCount}자 · 말하면 약 {formatTime(estimatedSeconds)}
+                {overOneMinute && <span className="text-amber-400 font-bold"> (1분 초과)</span>}
+              </span>
+              {savedAt && (
+                <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                  <Check size={11} />
+                  자동 저장됨
+                </span>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="p-5 mb-4 bg-surface-alt border border-dashed border-white/15 rounded-xl text-center space-y-2">
+            <EyeOff size={20} className="mx-auto text-gray-500" />
+            <p className="text-sm font-bold text-gray-300">원고를 보지 않고 먼저 말해보세요</p>
+            <p className="text-[11px] text-gray-500">타이머로 1분간 소리 내어 답해본 뒤 원고를 확인해보세요</p>
+            <button
+              onClick={() => setRevealed(true)}
+              className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline mt-1"
+            >
+              <Eye size={13} />
+              내가 쓴 원고 보기
+            </button>
+          </div>
+        )}
 
         {/* 1분 타이머 - 쓴 스크립트를 소리내어 읽어보는 용도 */}
         <div className="bg-surface-alt border border-white/10 rounded-xl p-4 mb-4 text-center">

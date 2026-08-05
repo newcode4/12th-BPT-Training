@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
-import { PenLine, Shuffle, AlertTriangle, Loader2, CloudOff, Search, Check } from 'lucide-react'
+import { PenLine, Shuffle, AlertTriangle, Loader2, CloudOff, Search, Check, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import { getRandomItem } from '../utils/formatters'
 import { supabase, supabaseConfigured } from '../utils/supabase'
 import { WEEKS } from '../utils/weeks'
 import { TOPICS, parseTags } from '../utils/qaTags'
 import { listRecords } from '../utils/cloudStore'
 import ScriptPracticeModal from '../components/ScriptPracticeModal'
+
+const PAGE_SIZE = 15
+const TITLE_CLAMP_THRESHOLD = 60
 
 function Chip({ active, onClick, children }) {
   return (
@@ -30,7 +33,12 @@ export default function PracticeRoom() {
   const [weekFilter, setWeekFilter] = useState('all')
   const [topicFilter, setTopicFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [page, setPage] = useState(1)
+  const [expandedIds, setExpandedIds] = useState(() => new Set())
+  const [weekPickerOpen, setWeekPickerOpen] = useState(false)
+
   const [practiceQuestion, setPracticeQuestion] = useState(null)
+  const [practiceBlind, setPracticeBlind] = useState(false)
   // questionId -> { id, text } (내가 쓴 스크립트만)
   const [scripts, setScripts] = useState({})
   const author = localStorage.getItem('qa-author') || '익명'
@@ -68,6 +76,10 @@ export default function PracticeRoom() {
       })
   }, [])
 
+  useEffect(() => {
+    setPage(1)
+  }, [weekFilter, topicFilter, searchQuery])
+
   const visible = questions.filter((q) => {
     if (weekFilter !== 'all' && q.week !== weekFilter) return false
     if (topicFilter !== 'all' && q.topic !== topicFilter) return false
@@ -76,15 +88,44 @@ export default function PracticeRoom() {
     return true
   })
 
+  const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE))
+  const pagedVisible = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
   const usedTopics = TOPICS.filter(t => questions.some(q => q.topic === t))
 
+  const openPractice = (question, blind) => {
+    setPracticeQuestion(question)
+    setPracticeBlind(blind)
+  }
+
+  const toggleExpand = (id) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // 목적은 "안 보고 말하기" — 랜덤 뽑기는 항상 블라인드 모드로 연다
   const handleRandom = () => {
     const picked = getRandomItem(visible)
     if (!picked) {
       alert('조건에 맞는 돌발질문이 없어요. 필터를 바꾸거나 Q&A에서 먼저 등록해주세요.')
       return
     }
-    setPracticeQuestion(picked)
+    openPractice(picked, true)
+  }
+
+  const handleRandomWeek = (weekId) => {
+    const pool = questions.filter((q) => q.week === weekId)
+    const picked = getRandomItem(pool)
+    setWeekPickerOpen(false)
+    if (!picked) {
+      alert(`${WEEKS.find(w => w.id === weekId)?.label || weekId}에는 등록된 돌발질문이 없어요.`)
+      return
+    }
+    openPractice(picked, true)
   }
 
   return (
@@ -100,14 +141,36 @@ export default function PracticeRoom() {
           </p>
         </div>
 
-        <button
-          onClick={handleRandom}
-          disabled={loading}
-          className="shine relative glow-breathe w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-bold py-4 rounded-xl transition active:scale-95 shadow-floating"
-        >
-          {loading ? <Loader2 size={17} className="animate-spin" /> : <Shuffle size={17} />}
-          랜덤으로 하나 뽑기
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={() => setWeekPickerOpen((o) => !o)}
+            className="mx-auto flex items-center gap-1 text-xs font-bold text-gray-400 hover:text-brand transition"
+          >
+            주차별 랜덤 뽑기
+            <ChevronDown size={13} className={`transition-transform ${weekPickerOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {weekPickerOpen && (
+            <div className="anim-pop flex gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
+              {WEEKS.map((w) => (
+                <button
+                  key={w.id}
+                  onClick={() => handleRandomWeek(w.id)}
+                  className="shrink-0 px-3 py-2 rounded-xl text-xs font-bold bg-surface-alt text-gray-300 hover:bg-brand hover:text-white transition active:scale-95"
+                >
+                  {w.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={handleRandom}
+            disabled={loading}
+            className="shine relative glow-breathe w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-bold py-4 rounded-xl transition active:scale-95 shadow-floating"
+          >
+            {loading ? <Loader2 size={17} className="animate-spin" /> : <Shuffle size={17} />}
+            랜덤으로 하나 뽑기
+          </button>
+        </div>
 
         <div className="relative">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
@@ -154,12 +217,15 @@ export default function PracticeRoom() {
       ) : (
         <div className="stagger space-y-2">
           <p className="text-sm text-gray-400 px-1">{visible.length}개의 돌발질문</p>
-          {visible.map((q) => {
+          {pagedVisible.map((q) => {
             const hasScript = Boolean(scripts[q.id]?.text)
+            const isExpanded = expandedIds.has(q.id)
+            const isLong = q.title.length > TITLE_CLAMP_THRESHOLD
             return (
             <div
               key={q.id}
-              className="lift p-4 bg-surface rounded-2xl border border-white/10 shadow-card"
+              onClick={() => openPractice(q, false)}
+              className="lift p-4 bg-surface rounded-2xl border border-white/10 shadow-card cursor-pointer"
             >
               <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-brand-light text-brand">
@@ -183,13 +249,23 @@ export default function PracticeRoom() {
                   </span>
                 )}
               </div>
-              <p className="font-bold text-gray-100 leading-snug mb-3">{q.title}</p>
+              <p className={`font-bold text-gray-100 leading-snug ${isExpanded ? '' : 'line-clamp-3'}`}>
+                {q.title}
+              </p>
+              {isLong && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleExpand(q.id) }}
+                  className="text-[11px] font-bold text-brand mt-1"
+                >
+                  {isExpanded ? '접기' : '더보기'}
+                </button>
+              )}
               <button
-                onClick={() => setPracticeQuestion(q)}
-                className="w-full flex items-center justify-center gap-1.5 bg-brand-light hover:bg-red-500/20 text-brand font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
+                onClick={(e) => { e.stopPropagation(); openPractice(q, false) }}
+                className="w-full flex items-center justify-center gap-1.5 bg-brand-light hover:bg-red-500/20 text-brand font-bold py-2.5 rounded-xl text-sm transition active:scale-95 mt-3"
               >
                 <PenLine size={14} />
-                {hasScript ? '스크립트 이어쓰기' : '스크립트 작성하기'}
+                {hasScript ? '스크립트 확인 · 이어쓰기' : '스크립트 작성하기'}
               </button>
             </div>
             )
@@ -198,6 +274,26 @@ export default function PracticeRoom() {
             <div className="text-center py-12 bg-surface rounded-2xl border border-white/10 space-y-1">
               <p className="text-gray-400 font-bold">조건에 맞는 돌발질문이 없어요</p>
               <p className="text-xs text-gray-600">Q&A 커뮤니티에서 돌발질문을 먼저 등록해주세요</p>
+            </div>
+          )}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="p-2 rounded-lg bg-surface-alt text-gray-400 disabled:opacity-30 hover:bg-white/10 transition"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-xs font-bold text-gray-400">{page} / {totalPages}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="p-2 rounded-lg bg-surface-alt text-gray-400 disabled:opacity-30 hover:bg-white/10 transition"
+              >
+                <ChevronRight size={16} />
+              </button>
             </div>
           )}
         </div>
@@ -210,6 +306,7 @@ export default function PracticeRoom() {
           questionContent={practiceQuestion.content}
           existing={scripts[practiceQuestion.id]}
           author={author}
+          blind={practiceBlind}
           onSaved={(questionId, record) =>
             setScripts((prev) => {
               const next = { ...prev }

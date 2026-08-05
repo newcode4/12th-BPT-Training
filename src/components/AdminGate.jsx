@@ -1,6 +1,45 @@
-import { useState } from 'react'
-import { ShieldCheck, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ShieldCheck, X, Smartphone } from 'lucide-react'
 import { isAdminMode, tryEnableAdminMode, disableAdminMode } from '../utils/admin'
+import { getDeviceLimit, setDeviceLimit, DEFAULT_DEVICE_LIMIT } from '../utils/auth'
+
+function DeviceLimitControl() {
+  const [limit, setLimit] = useState(DEFAULT_DEVICE_LIMIT)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getDeviceLimit().then((l) => { setLimit(l); setLoading(false) })
+  }, [])
+
+  const handleChange = async (next) => {
+    setLimit(next)
+    try {
+      await setDeviceLimit(next)
+    } catch (e) {
+      alert('설정 저장에 실패했어요: ' + e.message)
+    }
+  }
+
+  if (loading) return null
+
+  return (
+    <div className="inline-flex items-center gap-2 text-[11px] font-bold text-gray-400 bg-surface-alt px-2.5 py-1.5 rounded-full">
+      <Smartphone size={12} />
+      동시 로그인 허용
+      {[1, 2].map((n) => (
+        <button
+          key={n}
+          onClick={() => handleChange(n)}
+          className={`px-2 py-0.5 rounded-full transition ${
+            limit === n ? 'bg-brand text-white' : 'bg-surface text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          {n}대
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export default function AdminGate() {
   const [admin, setAdmin] = useState(isAdminMode())
@@ -24,13 +63,16 @@ export default function AdminGate() {
 
   if (admin) {
     return (
-      <button
-        onClick={handleDisable}
-        className="inline-flex items-center gap-1 text-[11px] font-bold text-brand hover:text-brand-dark"
-      >
-        <ShieldCheck size={12} />
-        관리자 모드 켜짐 (끄기)
-      </button>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <button
+          onClick={handleDisable}
+          className="inline-flex items-center gap-1 text-[11px] font-bold text-brand hover:text-brand-dark"
+        >
+          <ShieldCheck size={12} />
+          관리자 모드 켜짐 (끄기)
+        </button>
+        <DeviceLimitControl />
+      </div>
     )
   }
 

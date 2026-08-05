@@ -1,4 +1,7 @@
+import { MessageCircle } from 'lucide-react'
 import AdminGate from './AdminGate'
+
+const KAKAO_INQUIRY_URL = 'https://open.kakao.com/o/s2g1FvHi'
 
 export default function Footer() {
   return (
@@ -8,6 +11,17 @@ export default function Footer() {
         <br />
         마이크를 통해 녹음된 음성 데이터는 외부 서버에 수집되거나 저장되지 않으며, 전적으로 브라우저 내부에서만 안전하게 임시 처리됩니다.
       </p>
+      <div className="flex justify-center">
+        <a
+          href={KAKAO_INQUIRY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-400 hover:text-amber-300"
+        >
+          <MessageCircle size={12} />
+          오류 · 아이디어 제보는 카카오톡 오픈채팅으로
+        </a>
+      </div>
       <div className="flex justify-center">
         <AdminGate />
       </div>

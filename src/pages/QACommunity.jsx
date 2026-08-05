@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
 import {
-  MessageCircle, AlertTriangle, MessageSquare, Star, ThumbsUp, Mic,
+  MessageCircle, AlertTriangle, MessageSquare, Star, ThumbsUp, Mic, PenLine,
   PenSquare, ArrowLeft, Trash2, Loader2, CloudOff, Search, Check
 } from 'lucide-react'
 import { formatDate } from '../utils/formatters'
 import { supabase, supabaseConfigured } from '../utils/supabase'
 import { WEEKS } from '../utils/weeks'
 import { TOPICS, parseTags, buildTags } from '../utils/qaTags'
+import { listRecords } from '../utils/cloudStore'
 import AnswerPracticeModal from '../components/AnswerPracticeModal'
+import ScriptPracticeModal from '../components/ScriptPracticeModal'
 import ProfileModal from '../components/ProfileModal'
 import { isAdminMode } from '../utils/admin'
 
@@ -61,7 +63,7 @@ function Chip({ active, onClick, children, className = '' }) {
   )
 }
 
-export default function QACommunity({ author, onLogout, pendingDraft, onDraftConsumed }) {
+export default function QACommunity({ author, onLogout }) {
   const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
@@ -75,6 +77,8 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
   const [selectedQuestion, setSelectedQuestion] = useState(null)
   const [answerContent, setAnswerContent] = useState('')
   const [practiceAnswer, setPracticeAnswer] = useState(null)
+  const [scriptPracticeOpen, setScriptPracticeOpen] = useState(false)
+  const [scripts, setScripts] = useState({}) // questionId -> { id, text } (돌발질문 전용 개인 원고, 돌발 연습실과 공유)
   const [submitting, setSubmitting] = useState(false)
 
   const [newCategory, setNewCategory] = useState('unexpected')
@@ -110,15 +114,17 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
     loadQuestions()
   }, [])
 
+  // 돌발질문 개인 원고는 돌발 연습실과 같은 저장소를 공유한다 ("답변하기"= "원고쓰기")
   useEffect(() => {
-    if (!pendingDraft) return
-    setNewTitle(pendingDraft.title || '')
-    setNewContent(pendingDraft.content || '')
-    setNewCategory('unexpected')
-    setShowContentField(Boolean(pendingDraft.content))
-    setView('write')
-    onDraftConsumed?.()
-  }, [pendingDraft])
+    if (!author) return
+    listRecords('script', { author })
+      .then((rows) => {
+        const map = {}
+        for (const r of rows) if (r.questionId) map[r.questionId] = { id: r.id, text: r.text }
+        setScripts(map)
+      })
+      .catch(e => console.error('원고 불러오기 실패', e))
+  }, [author])
 
   const resetWriteForm = () => {
     setNewTitle('')
@@ -671,13 +677,23 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
             )}
           </div>
 
-          <button
-            onClick={() => setPracticeAnswer(selectedQuestion.title)}
-            className="w-full flex items-center justify-center gap-1.5 bg-brand-light hover:bg-red-500/20 text-brand font-bold py-3 rounded-xl transition active:scale-95"
-          >
-            <Mic size={15} />
-            이 질문으로 1분 연습하기
-          </button>
+          {selectedQuestion.category !== 'general' ? (
+            <button
+              onClick={() => setScriptPracticeOpen(true)}
+              className="w-full flex items-center justify-center gap-1.5 bg-brand-light hover:bg-red-500/20 text-brand font-bold py-3 rounded-xl transition active:scale-95"
+            >
+              <PenLine size={15} />
+              {scripts[selectedQuestion.id]?.text ? '내 원고 확인 · 이어쓰기' : '내 원고 쓰기 · 연습하기'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setPracticeAnswer(selectedQuestion.title)}
+              className="w-full flex items-center justify-center gap-1.5 bg-brand-light hover:bg-red-500/20 text-brand font-bold py-3 rounded-xl transition active:scale-95"
+            >
+              <Mic size={15} />
+              이 질문으로 1분 연습하기
+            </button>
+          )}
 
           <hr className="border-white/10" />
 
@@ -774,6 +790,25 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
         <AnswerPracticeModal
           answerContent={practiceAnswer}
           onClose={() => setPracticeAnswer(null)}
+        />
+      )}
+
+      {scriptPracticeOpen && selectedQuestion && (
+        <ScriptPracticeModal
+          questionId={selectedQuestion.id}
+          questionTitle={selectedQuestion.title}
+          questionContent={selectedQuestion.content}
+          existing={scripts[selectedQuestion.id]}
+          author={author}
+          onSaved={(questionId, record) =>
+            setScripts((prev) => {
+              const next = { ...prev }
+              if (record) next[questionId] = { id: record.id, text: record.text }
+              else delete next[questionId]
+              return next
+            })
+          }
+          onClose={() => setScriptPracticeOpen(false)}
         />
       )}
     </div>

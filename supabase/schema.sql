@@ -28,3 +28,27 @@ create policy "records select" on public.records for select using (true);
 create policy "records insert" on public.records for insert with check (true);
 create policy "records update" on public.records for update using (true) with check (true);
 create policy "records delete" on public.records for delete using (true);
+
+-- 로그인 세션 (PC/모바일처럼 한 사람이 동시에 여러 기기에서 접속할 수 있게)
+-- 관리자가 허용 대수(1~2대)를 바꿀 수 있고, 그 설정은 records(kind='setting')에 저장한다.
+create table if not exists public.sessions (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  token       uuid not null,
+  created_at  timestamptz not null default now(),
+  last_seen   timestamptz not null default now()
+);
+
+create index if not exists sessions_name_idx on public.sessions (name);
+
+alter table public.sessions enable row level security;
+
+drop policy if exists "sessions select" on public.sessions;
+drop policy if exists "sessions insert" on public.sessions;
+drop policy if exists "sessions update" on public.sessions;
+drop policy if exists "sessions delete" on public.sessions;
+
+create policy "sessions select" on public.sessions for select using (true);
+create policy "sessions insert" on public.sessions for insert with check (true);
+create policy "sessions update" on public.sessions for update using (true) with check (true);
+create policy "sessions delete" on public.sessions for delete using (true);
