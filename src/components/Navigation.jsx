@@ -1,9 +1,9 @@
 import { Video, MessageCircle, Mic, Rocket, User, PartyPopper } from 'lucide-react'
 
 const navItems = [
-  { id: 'analysis', label: '시뮬레이션 분석실', icon: Video },
-  { id: 'qa', label: 'Q&A 커뮤니티', icon: MessageCircle },
-  { id: 'practice', label: '돌발 연습실', icon: Mic },
+  { id: 'analysis', label: '시뮬레이션 분석실', short: '분석실', icon: Video },
+  { id: 'qa', label: 'Q&A 커뮤니티', short: 'Q&A', icon: MessageCircle },
+  { id: 'practice', label: '돌발 연습실', short: '돌발 연습', icon: Mic },
 ]
 
 const SIMULATOR_URL = 'https://azuremooni.github.io/businesspt-simulator/'
@@ -18,13 +18,14 @@ export default function Navigation({ currentPage, setCurrentPage, onOpenProfile 
             <div className="flex items-center gap-2 min-w-0">
               <button
                 onClick={() => setCurrentPage('analysis')}
-                className="text-lg md:text-xl font-extrabold text-brand truncate tracking-tight hover:opacity-80 transition"
+                className="text-base md:text-xl font-extrabold text-brand shrink-0 tracking-tight hover:opacity-80 transition"
               >
                 PT 시뮬레이션
               </button>
-              <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold bg-gradient-to-r from-brand to-orange-500 text-white px-2 sm:px-2.5 py-1 rounded-full whitespace-nowrap">
+              <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold bg-gradient-to-r from-brand to-orange-500 text-white px-2 sm:px-2.5 py-1 rounded-full whitespace-nowrap overflow-hidden">
                 <PartyPopper size={12} className="shrink-0" />
-                레전드 12기 화이팅
+                <span className="hidden sm:inline">레전드 12기 화이팅</span>
+                <span className="sm:hidden">12기</span>
               </span>
             </div>
 
@@ -78,27 +79,17 @@ export default function Navigation({ currentPage, setCurrentPage, onOpenProfile 
             <button
               key={item.id}
               onClick={() => setCurrentPage(item.id)}
-              className={`flex flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] font-bold transition ${
+              className={`flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-bold transition active:scale-95 ${
                 currentPage === item.id ? 'text-brand' : 'text-gray-500'
               }`}
             >
               <Icon size={20} />
-              {item.label}
+              <span className="whitespace-nowrap">{item.short}</span>
             </button>
           )
         })}
       </nav>
 
-      {/* 시뮬레이션 바로가기 플로팅 버튼 */}
-      <a
-        href={SIMULATOR_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        title="시뮬레이션 바로가기"
-        className="fixed bottom-36 md:bottom-24 right-4 md:right-8 z-20 w-12 h-12 flex items-center justify-center rounded-full bg-surface border border-white/10 shadow-card hover:scale-105 active:scale-95 transition text-gray-300"
-      >
-        <Rocket size={20} />
-      </a>
     </>
   )
 }

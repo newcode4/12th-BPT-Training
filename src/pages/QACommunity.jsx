@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import {
   MessageCircle, AlertTriangle, MessageSquare, Star, ThumbsUp, Mic,
-  PenSquare, ArrowLeft, Trash2, Loader2, CloudOff
+  PenSquare, ArrowLeft, Trash2, Loader2, CloudOff, Search, Check
 } from 'lucide-react'
 import { formatDate } from '../utils/formatters'
 import { supabase, supabaseConfigured } from '../utils/supabase'
 import { WEEKS } from '../utils/weeks'
+import { TOPICS, parseTags, buildTags } from '../utils/qaTags'
 import AnswerPracticeModal from '../components/AnswerPracticeModal'
 import ProfileModal from '../components/ProfileModal'
 
@@ -27,19 +28,36 @@ function mapAnswer(a) {
 }
 
 function mapQuestion(q) {
+  const { week, topic, tags } = parseTags(q.tags)
   return {
     id: q.id,
     category: q.category,
     title: q.title,
     content: q.content,
-    week: q.week || '',
-    tags: q.tags || [],
+    week,
+    topic,
+    tags,
     author: q.author,
     createdAt: q.created_at,
     answers: (q.answers || [])
       .map(mapAnswer)
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)),
   }
+}
+
+function Chip({ active, onClick, children, className = '' }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 px-3.5 py-2 rounded-full text-sm font-bold transition active:scale-95 ${
+        active
+          ? 'bg-brand text-white shadow-floating'
+          : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
+      } ${className}`}
+    >
+      {children}
+    </button>
+  )
 }
 
 export default function QACommunity({ author, onLogout, pendingDraft, onDraftConsumed }) {
@@ -50,17 +68,19 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
 
   const [view, setView] = useState('list') // 'list' | 'write' | 'detail'
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [topicFilter, setTopicFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState('newest')
   const [selectedQuestion, setSelectedQuestion] = useState(null)
   const [answerContent, setAnswerContent] = useState('')
   const [practiceAnswer, setPracticeAnswer] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const [newCategory, setNewCategory] = useState('unexpected')
   const [newTitle, setNewTitle] = useState('')
   const [newContent, setNewContent] = useState('')
-  const [newTags, setNewTags] = useState('')
   const [newWeek, setNewWeek] = useState('')
+  const [newTopic, setNewTopic] = useState('')
   const [showContentField, setShowContentField] = useState(false)
 
   const loadQuestions = async () => {
@@ -97,12 +117,28 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
     onDraftConsumed?.()
   }, [pendingDraft])
 
+  const resetWriteForm = () => {
+    setNewTitle('')
+    setNewContent('')
+    setNewWeek('')
+    setNewTopic('')
+    setNewCategory('unexpected')
+    setShowContentField(false)
+  }
+
   const handleCreateQuestion = async () => {
     if (!newTitle.trim()) {
-      alert('제목을 입력해주세요.')
+      alert('질문을 입력해주세요.')
       return
     }
-    const tags = newTags.split(',').map((t) => t.trim()).filter(Boolean)
+    if (newCategory === 'unexpected' && !newTopic) {
+      alert('돌발질문 유형을 선택해주세요.')
+      return
+    }
+    setSubmitting(true)
+    const tags = newCategory === 'unexpected'
+      ? buildTags({ week: newWeek, topic: newTopic })
+      : []
 
     const { data, error } = await supabase
       .from('questions')
@@ -112,33 +148,29 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
         content: newContent.trim(),
         tags,
         author,
-        week: newCategory === 'unexpected' ? (newWeek || null) : null,
       })
       .select('*, answers(*)')
       .single()
 
+    setSubmitting(false)
     if (error) {
       alert('등록에 실패했어요: ' + error.message)
       return
     }
     setQuestions([mapQuestion(data), ...questions])
-    setNewTitle('')
-    setNewContent('')
-    setNewTags('')
-    setNewWeek('')
-    setNewCategory('unexpected')
-    setShowContentField(false)
+    resetWriteForm()
     setView('list')
   }
 
   const handleAddAnswer = async () => {
     if (!answerContent.trim() || !selectedQuestion) return
-
+    setSubmitting(true)
     const { data, error } = await supabase
       .from('answers')
       .insert({ question_id: selectedQuestion.id, content: answerContent, author })
       .select()
       .single()
+    setSubmitting(false)
 
     if (error) {
       alert('답변 등록에 실패했어요: ' + error.message)
@@ -208,13 +240,16 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
     if (categoryFilter !== 'all') {
       list = list.filter(q => (q.category || 'unexpected') === categoryFilter)
     }
+    if (topicFilter !== 'all') {
+      list = list.filter(q => q.topic === topicFilter)
+    }
     const q = searchQuery.trim().toLowerCase()
     if (q) {
       list = list.filter((question) => {
         const inTitle = question.title.toLowerCase().includes(q)
-        const inContent = question.content.toLowerCase().includes(q)
-        const inTags = (question.tags || []).some((tag) => tag.toLowerCase().includes(q))
-        return inTitle || inContent || inTags
+        const inContent = (question.content || '').toLowerCase().includes(q)
+        const inTopic = (question.topic || '').toLowerCase().includes(q)
+        return inTitle || inContent || inTopic
       })
     }
     if (sortBy === 'newest') {
@@ -229,19 +264,9 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
     return list
   }
 
-  const getTopAcrossResults = (list) => {
-    let best = null
-    list.forEach((question) => {
-      const answer = getBestAnswerOf(question)
-      if (answer && (!best || answer.likes > best.answer.likes)) {
-        best = { question, answer }
-      }
-    })
-    return best
-  }
-
   const visibleQuestions = getVisibleQuestions()
-  const topResult = searchQuery.trim() ? getTopAcrossResults(visibleQuestions) : null
+  // 실제로 글이 존재하는 유형만 필터로 노출해 빈 칩이 쌓이지 않게 한다
+  const usedTopics = TOPICS.filter(t => questions.some(q => q.topic === t))
   const pinnedAnswers = (selectedQuestion?.answers || []).filter(a => a.isPinned)
   const unpinnedAnswers = (selectedQuestion?.answers || []).filter(a => !a.isPinned)
   const sortedAnswers = [...pinnedAnswers, ...unpinnedAnswers]
@@ -250,15 +275,21 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
     const isUnexpected = category !== 'general'
     return (
       <span
-        className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${
+        className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
           isUnexpected ? 'bg-brand-light text-brand' : 'bg-blue-500/10 text-blue-400'
         }`}
       >
-        {isUnexpected ? <AlertTriangle size={11} /> : <MessageSquare size={11} />}
-        {isUnexpected ? '돌발질문' : '일반질문'}
+        {isUnexpected ? <AlertTriangle size={10} /> : <MessageSquare size={10} />}
+        {isUnexpected ? '돌발' : '일반'}
       </span>
     )
   }
+
+  const metaBadge = (text) => (
+    <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-gray-300">
+      {text}
+    </span>
+  )
 
   if (!supabaseConfigured) {
     return (
@@ -290,7 +321,7 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
   }
 
   return (
-    <div className="space-y-6 relative">
+    <div className="space-y-4 relative">
       {showProfileModal && (
         <ProfileModal
           author={author}
@@ -301,77 +332,66 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
 
       {view === 'list' && (
         <>
-          <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="flex items-center gap-2 text-xl md:text-2xl font-extrabold">
-                <MessageCircle size={22} className="text-brand" />
-                Q&A 커뮤니티
+          <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="flex items-center gap-2 text-xl md:text-2xl font-extrabold min-w-0">
+                <MessageCircle size={22} className="text-brand shrink-0" />
+                <span className="truncate">Q&A 커뮤니티</span>
               </h2>
               {author && (
                 <button
                   onClick={() => setShowProfileModal(true)}
-                  className="text-xs text-gray-500 hover:text-brand"
+                  className="shrink-0 text-xs text-gray-500 hover:text-brand"
                 >
-                  {author} 님 · 프로필
+                  {author} 님
                 </button>
               )}
             </div>
 
-            <input
-              type="text"
-              placeholder="키워드 또는 태그로 검색 (예: 시간, 조회수, 환불)"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full p-3 border border-white/10 rounded-xl text-base focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand mb-4"
-            />
+            <div className="relative">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="질문 검색"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-3 py-3 bg-surface-alt border border-white/10 rounded-xl text-base focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+              />
+            </div>
 
-            {topResult && (
-              <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
-                <div className="flex items-center gap-1.5 text-amber-400 font-bold mb-1">
-                  <Star size={14} fill="currentColor" />
-                  베스트 대처 답변
-                </div>
-                <p className="text-sm text-gray-400 mb-2">{topResult.question.title}</p>
-                <p className="text-gray-100 whitespace-pre-wrap mb-2">{topResult.answer.content}</p>
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1 text-sm text-brand font-bold">
-                    <ThumbsUp size={13} />
-                    {topResult.answer.likes}
-                  </span>
-                  <button
-                    onClick={() => setPracticeAnswer(topResult.answer.content)}
-                    className="flex items-center gap-1.5 text-sm bg-brand hover:bg-brand-dark text-white font-bold px-3 py-1.5 rounded-lg transition"
-                  >
-                    <Mic size={13} />
-                    1분 연습하기
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* 카테고리 탭 */}
-            <div className="flex gap-1 overflow-x-auto -mx-1 px-1 mb-3">
+            {/* 카테고리 */}
+            <div className="flex gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
               {CATEGORIES.map((c) => (
-                <button
+                <Chip
                   key={c.id}
-                  onClick={() => setCategoryFilter(c.id)}
-                  className={`shrink-0 px-4 py-2 rounded-xl font-bold text-sm transition ${
-                    categoryFilter === c.id
-                      ? 'bg-brand text-white'
-                      : 'bg-surface-alt text-gray-400 hover:bg-white/10'
-                  }`}
+                  active={categoryFilter === c.id}
+                  onClick={() => { setCategoryFilter(c.id); setTopicFilter('all') }}
                 >
                   {c.label}
-                </button>
+                </Chip>
               ))}
             </div>
+
+            {/* 돌발질문 유형 필터 */}
+            {categoryFilter !== 'general' && usedTopics.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
+                <Chip active={topicFilter === 'all'} onClick={() => setTopicFilter('all')} className="!text-xs !py-1.5">
+                  전체 유형
+                </Chip>
+                {usedTopics.map((t) => (
+                  <Chip key={t} active={topicFilter === t} onClick={() => setTopicFilter(t)} className="!text-xs !py-1.5">
+                    {t}
+                  </Chip>
+                ))}
+              </div>
+            )}
 
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-400">{visibleQuestions.length}개의 글</span>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="text-sm p-1.5 border border-white/10 rounded-lg bg-surface"
+                className="text-sm p-2 border border-white/10 rounded-lg bg-surface-alt"
               >
                 <option value="newest">최신순</option>
                 <option value="popular">인기순</option>
@@ -387,31 +407,20 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
                 <button
                   key={q.id}
                   onClick={() => { setSelectedQuestion(q); setView('detail') }}
-                  className="w-full text-left p-4 rounded-2xl bg-surface border border-white/10 shadow-card hover:bg-surface-alt active:bg-white/10 transition"
+                  className="w-full text-left p-4 rounded-2xl bg-surface border border-white/10 shadow-card hover:border-brand/40 active:scale-[0.99] transition"
                 >
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                     {categoryBadge(q.category)}
-                    {q.week && (
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white/10 text-gray-300">
-                        {WEEKS.find(w => w.id === q.week)?.label || `${q.week}주차`}
-                      </span>
-                    )}
-                    <span className="text-xs text-gray-500">답변 {q.answers?.length || 0}</span>
+                    {q.topic && metaBadge(q.topic)}
+                    {q.week && metaBadge(WEEKS.find(w => w.id === q.week)?.label || `${q.week}주차`)}
                   </div>
-                  <h4 className="font-bold">{q.title}</h4>
-                  <p className="text-xs text-gray-400 mt-0.5">{q.author}</p>
-                  {(q.tags || []).length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {q.tags.map((tag) => (
-                        <span key={tag} className="text-xs bg-white/10 text-gray-400 px-2 py-0.5 rounded-full">
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <h4 className="font-bold leading-snug">{q.title}</h4>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {q.author} · 답변 {q.answers?.length || 0}
+                  </p>
                   {best && (
-                    <p className="flex items-center gap-1 text-xs text-amber-400 mt-2 line-clamp-1">
-                      <Star size={11} fill="currentColor" />
+                    <p className="flex items-start gap-1 text-xs text-amber-400 mt-2 line-clamp-2">
+                      <Star size={11} fill="currentColor" className="shrink-0 mt-0.5" />
                       {best.content}
                     </p>
                   )}
@@ -419,8 +428,9 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
               )
             })}
             {visibleQuestions.length === 0 && (
-              <div className="text-center text-gray-500 py-12 bg-surface rounded-2xl border border-white/10">
-                아직 등록된 글이 없어요
+              <div className="text-center py-12 bg-surface rounded-2xl border border-white/10 space-y-1">
+                <p className="text-gray-400 font-bold">아직 등록된 글이 없어요</p>
+                <p className="text-xs text-gray-600">오른쪽 아래 글쓰기 버튼으로 첫 질문을 남겨보세요</p>
               </div>
             )}
           </div>
@@ -428,7 +438,7 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
           {/* 글쓰기 플로팅 버튼 */}
           <button
             onClick={() => setView('write')}
-            className="fixed bottom-20 md:bottom-8 right-4 md:right-8 z-20 flex items-center gap-1.5 bg-brand hover:bg-brand-dark active:scale-95 text-white font-bold px-5 py-3.5 rounded-full shadow-floating transition"
+            className="fixed bottom-24 md:bottom-8 right-4 md:right-8 z-20 flex items-center gap-1.5 bg-brand hover:bg-brand-dark active:scale-95 text-white font-bold px-5 py-3.5 rounded-full shadow-floating transition"
           >
             <PenSquare size={16} />
             글쓰기
@@ -438,20 +448,23 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
 
       {view === 'write' && (
         <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <button onClick={() => setView('list')} className="text-gray-500 hover:text-gray-200">
+          <div className="flex items-center gap-3 mb-5">
+            <button
+              onClick={() => { resetWriteForm(); setView('list') }}
+              className="text-gray-500 hover:text-gray-200"
+            >
               <ArrowLeft size={20} />
             </button>
             <h2 className="text-xl font-extrabold">글쓰기</h2>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-5">
             <div className="flex gap-2">
               {CATEGORIES.filter(c => c.id !== 'all').map((c) => (
                 <button
                   key={c.id}
                   onClick={() => setNewCategory(c.id)}
-                  className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition ${
+                  className={`flex-1 py-3 rounded-xl font-bold text-sm transition active:scale-95 ${
                     newCategory === c.id
                       ? 'bg-brand text-white'
                       : 'bg-surface-alt text-gray-400 hover:bg-white/10'
@@ -461,59 +474,90 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
                 </button>
               ))}
             </div>
+
             {newCategory === 'unexpected' && (
-              <div className="flex flex-wrap gap-1.5">
-                {WEEKS.map((w) => (
-                  <button
-                    key={w.id}
-                    onClick={() => setNewWeek(newWeek === w.id ? '' : w.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                      newWeek === w.id
-                        ? 'bg-brand text-white'
-                        : 'bg-surface-alt text-gray-400 hover:bg-white/10'
-                    }`}
-                  >
-                    {w.label}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 mb-2 block">
+                    돌발질문 유형 <span className="text-brand">*</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {TOPICS.map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setNewTopic(t)}
+                        className={`flex items-center justify-center gap-1 px-2 py-2.5 rounded-xl text-sm font-bold transition active:scale-95 ${
+                          newTopic === t
+                            ? 'bg-brand text-white'
+                            : 'bg-surface-alt text-gray-400 hover:bg-white/10'
+                        }`}
+                      >
+                        {newTopic === t && <Check size={13} className="shrink-0" />}
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-gray-400 mb-2 block">주차 (선택)</label>
+                  <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
+                    {WEEKS.map((w) => (
+                      <button
+                        key={w.id}
+                        onClick={() => setNewWeek(newWeek === w.id ? '' : w.id)}
+                        className={`shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-95 ${
+                          newWeek === w.id
+                            ? 'bg-brand text-white'
+                            : 'bg-surface-alt text-gray-400 hover:bg-white/10'
+                        }`}
+                      >
+                        {w.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
-            <input
-              type="text"
-              placeholder="질문 제목"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateQuestion()}
-              autoFocus
-              className="w-full p-3 border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-            />
+
+            <div>
+              <label className="text-xs font-bold text-gray-400 mb-2 block">
+                질문 <span className="text-brand">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder={newCategory === 'unexpected' ? '예: 썸네일을 골라주시면 안되요?' : '무엇이 궁금한가요?'}
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateQuestion()}
+                autoFocus
+                className="w-full p-3.5 bg-surface-alt border border-white/10 rounded-xl text-base focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+              />
+            </div>
+
             {showContentField ? (
               <textarea
-                placeholder="질문 내용"
+                placeholder="상황을 더 자세히 적어주세요 (선택)"
                 value={newContent}
                 onChange={(e) => setNewContent(e.target.value)}
-                className="w-full p-3 border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-                rows="6"
+                className="w-full p-3.5 bg-surface-alt border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                rows="5"
               />
             ) : (
               <button
                 onClick={() => setShowContentField(true)}
                 className="text-xs font-bold text-gray-500 hover:text-brand"
               >
-                + 내용 추가 (선택)
+                + 자세한 설명 추가 (선택)
               </button>
             )}
-            <input
-              type="text"
-              placeholder="태그 (쉼표로 구분, 예: 시간, 환불, 조회수)"
-              value={newTags}
-              onChange={(e) => setNewTags(e.target.value)}
-              className="w-full p-3 border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-            />
+
             <button
               onClick={handleCreateQuestion}
-              className="w-full bg-brand hover:bg-brand-dark text-white font-bold py-3.5 rounded-xl transition"
+              disabled={submitting}
+              className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-bold py-4 rounded-xl transition active:scale-95"
             >
+              {submitting && <Loader2 size={16} className="animate-spin" />}
               등록하기
             </button>
           </div>
@@ -521,7 +565,7 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
       )}
 
       {view === 'detail' && selectedQuestion && (
-        <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 space-y-6">
+        <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 space-y-5">
           <div className="flex items-center gap-3">
             <button onClick={() => setView('list')} className="text-gray-500 hover:text-gray-200">
               <ArrowLeft size={20} />
@@ -536,36 +580,40 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
           </div>
 
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
               {categoryBadge(selectedQuestion.category)}
-              {selectedQuestion.week && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white/10 text-gray-300">
-                  {WEEKS.find(w => w.id === selectedQuestion.week)?.label || `${selectedQuestion.week}주차`}
-                </span>
+              {selectedQuestion.topic && metaBadge(selectedQuestion.topic)}
+              {selectedQuestion.week && metaBadge(
+                WEEKS.find(w => w.id === selectedQuestion.week)?.label || `${selectedQuestion.week}주차`
               )}
             </div>
-            <h3 className="text-2xl font-extrabold mb-2">{selectedQuestion.title}</h3>
-            <p className="text-sm text-gray-400 mb-2">
+            <h3 className="text-xl md:text-2xl font-extrabold mb-2 leading-snug">{selectedQuestion.title}</h3>
+            <p className="text-sm text-gray-500 mb-3">
               {selectedQuestion.author} · {formatDate(selectedQuestion.createdAt)}
             </p>
-            {(selectedQuestion.tags || []).length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-2">
-                {selectedQuestion.tags.map((tag) => (
-                  <span key={tag} className="text-xs bg-white/10 text-gray-400 px-2 py-0.5 rounded-full">
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
             {selectedQuestion.content && (
-              <p className="text-gray-200 whitespace-pre-wrap">{selectedQuestion.content}</p>
+              <p className="text-gray-200 whitespace-pre-wrap leading-relaxed">{selectedQuestion.content}</p>
             )}
           </div>
+
+          <button
+            onClick={() => setPracticeAnswer(selectedQuestion.title)}
+            className="w-full flex items-center justify-center gap-1.5 bg-brand-light hover:bg-red-500/20 text-brand font-bold py-3 rounded-xl transition active:scale-95"
+          >
+            <Mic size={15} />
+            이 질문으로 1분 연습하기
+          </button>
 
           <hr className="border-white/10" />
 
           <div className="space-y-3">
-            <h4 className="font-bold text-lg">답변 ({selectedQuestion.answers?.length || 0})</h4>
+            <h4 className="font-bold">답변 ({selectedQuestion.answers?.length || 0})</h4>
+
+            {sortedAnswers.length === 0 && (
+              <p className="text-sm text-gray-500 text-center py-6">
+                아직 답변이 없어요. 첫 대처법을 공유해주세요!
+              </p>
+            )}
 
             {sortedAnswers.map((answer) => (
               <div
@@ -580,21 +628,21 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
                     베스트 대처법
                   </div>
                 )}
-                <p className="text-sm text-gray-400 mb-2">
+                <p className="text-xs text-gray-500 mb-2">
                   {answer.author} · {formatDate(answer.createdAt)}
                 </p>
-                <p className="text-gray-200 whitespace-pre-wrap mb-3">{answer.content}</p>
+                <p className="text-gray-200 whitespace-pre-wrap mb-3 leading-relaxed">{answer.content}</p>
                 <div className="flex gap-2 flex-wrap">
                   <button
                     onClick={() => handleLikeAnswer(answer.id)}
-                    className="flex items-center gap-1 text-sm font-bold text-brand bg-surface px-2.5 py-1 rounded-lg border border-white/10"
+                    className="flex items-center gap-1 text-sm font-bold text-brand bg-surface px-3 py-1.5 rounded-lg border border-white/10 active:scale-95 transition"
                   >
                     <ThumbsUp size={13} />
                     {answer.likes}
                   </button>
                   <button
                     onClick={() => handlePinAnswer(answer.id)}
-                    className={`flex items-center gap-1 text-sm font-bold px-2.5 py-1 rounded-lg border ${
+                    className={`flex items-center gap-1 text-sm font-bold px-3 py-1.5 rounded-lg border active:scale-95 transition ${
                       answer.isPinned
                         ? 'text-amber-400 bg-surface border-amber-500/30'
                         : 'text-gray-400 bg-surface border-white/10'
@@ -605,10 +653,10 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
                   </button>
                   <button
                     onClick={() => setPracticeAnswer(answer.content)}
-                    className="flex items-center gap-1 text-sm font-bold bg-brand hover:bg-brand-dark text-white px-2.5 py-1 rounded-lg transition"
+                    className="flex items-center gap-1 text-sm font-bold bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded-lg transition active:scale-95"
                   >
                     <Mic size={13} />
-                    1분 연습하기
+                    연습
                   </button>
                 </div>
               </div>
@@ -623,13 +671,15 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
               placeholder="대처 방법을 입력해주세요..."
               value={answerContent}
               onChange={(e) => setAnswerContent(e.target.value)}
-              className="w-full p-3 border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+              className="w-full p-3.5 bg-surface-alt border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
               rows="4"
             />
             <button
               onClick={handleAddAnswer}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition"
+              disabled={submitting}
+              className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition active:scale-95"
             >
+              {submitting && <Loader2 size={16} className="animate-spin" />}
               답변 등록
             </button>
           </div>

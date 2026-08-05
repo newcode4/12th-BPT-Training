@@ -8,6 +8,12 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+  /* iOS에서 가로 방향 전환 시 글자 크기가 멋대로 커지는 것 방지 */
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -16,6 +22,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: #0A0A0B;
   color: #F3F4F6;
+  /* 가로 스크롤 칩이 뷰포트를 넓히지 않도록 */
+  overflow-x: hidden;
 }
 
 #root {
@@ -30,7 +38,26 @@ select {
   color-scheme: dark;
 }
 
+/* iOS Safari는 16px 미만 입력창에 포커스하면 화면을 확대해버린다 */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 input::placeholder,
 textarea::placeholder {
   color: #6B7280;
+}
+
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Video, Bookmark, RotateCcw, Save, Archive, Download, Trash2,
-  ChevronDown, Sparkles, ArrowUpDown, Upload, MonitorPlay, Folder,
-  ShieldCheck, Plus, X, Mic, Square
+  ChevronDown, ChevronRight, Sparkles, ArrowUpDown, Upload, MonitorPlay, Folder,
+  ShieldCheck, Plus, X
 } from 'lucide-react'
 import { generateUUID, formatTime, downloadJSON, hmsToSeconds } from '../utils/formatters'
 import {
@@ -43,6 +43,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
 
   const [insights, setInsights] = useState([])
   const [notesOpen, setNotesOpen] = useState(false)
+  const [analysisOpen, setAnalysisOpen] = useState(true)
   const [sortOrder, setSortOrder] = useState('newest') // 'newest' | 'oldest'
   const [adminFolders, setAdminFolders] = useState(() => getAdminFolders('0'))
   const [newFolderInput, setNewFolderInput] = useState('')
@@ -51,12 +52,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
   const videoRef = useRef(null)
   const scrapListRef = useRef(null)
   const lastScrapId = useRef(null)
-
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordSeconds, setRecordSeconds] = useState(0)
-  const mediaRecorderRef = useRef(null)
-  const recordStreamRef = useRef(null)
-  const recordChunksRef = useRef([])
+  const playerSectionRef = useRef(null)
 
   useEffect(() => {
     setAnalyses(getAnalyses())
@@ -124,51 +120,6 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
   const handleFileChange = (e) => {
     applySelectedFile(e.target.files?.[0])
   }
-
-  const handleStartRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      recordStreamRef.current = stream
-      const mediaRecorder = new MediaRecorder(stream)
-      recordChunksRef.current = []
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) recordChunksRef.current.push(e.data)
-      }
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordChunksRef.current, { type: 'audio/webm' })
-        const filename = `녹음_${selectedFolder}_${Date.now()}.webm`
-        applySelectedFile(new File([blob], filename, { type: 'audio/webm' }))
-        stream.getTracks().forEach((t) => t.stop())
-      }
-      mediaRecorder.start()
-      mediaRecorderRef.current = mediaRecorder
-      setRecordSeconds(0)
-      setIsRecording(true)
-    } catch (error) {
-      alert('마이크 접근 권한이 필요합니다.')
-    }
-  }
-
-  const handleStopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop()
-    }
-    setIsRecording(false)
-  }
-
-  useEffect(() => {
-    if (!isRecording) return
-    const timer = setInterval(() => setRecordSeconds((s) => s + 1), 1000)
-    return () => clearInterval(timer)
-  }, [isRecording])
-
-  useEffect(() => {
-    return () => {
-      if (recordStreamRef.current) {
-        recordStreamRef.current.getTracks().forEach((t) => t.stop())
-      }
-    }
-  }, [])
 
   const handleScrap = () => {
     if (!selectedAnalysis) return
@@ -288,6 +239,12 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
         setFile(new File([], analysis.filename))
       }
     }
+    setAnalysisOpen(true)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        playerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    })
   }
 
   const handleYtLoad = () => {
@@ -432,39 +389,51 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
       </aside>
 
       <div className="flex-1 min-w-0 space-y-6">
-        {/* 모바일: 상단 가로 주차 탭 */}
-        <div className="md:hidden bg-surface rounded-2xl shadow-card border border-white/10 p-4">
-          <h2 className="flex items-center gap-2 text-xl font-extrabold mb-4">
-            <Video size={20} className="text-brand" />
+        {/* 모바일: 주차 + 폴더 (가로 스크롤, 카드 밖으로 흘려서 잘리지 않게) */}
+        <div className="md:hidden bg-surface rounded-2xl shadow-card border border-white/10 p-4 space-y-3 overflow-hidden">
+          <h2 className="flex items-center gap-2 text-xl font-extrabold">
+            <Video size={20} className="text-brand shrink-0" />
             시뮬레이션 분석실
           </h2>
-          <div className="flex gap-1 overflow-x-auto -mx-1 px-1">
-            {WEEKS.map((w) => (
-              <WeekNavButton key={w.id} w={w} vertical={false} />
-            ))}
-          </div>
-        </div>
 
-        {/* 모바일: 폴더 탭 */}
-        <div className="md:hidden bg-surface rounded-2xl shadow-card border border-white/10 p-4">
-          <p className="flex items-center gap-1.5 text-xs font-bold text-gray-500 mb-3">
-            <Folder size={13} />
-            {weekLabel} 세부 폴더
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {folders.map((folder) => (
+          <div className="flex gap-2 overflow-x-auto -mx-4 px-4 scrollbar-none">
+            {WEEKS.map((w) => (
               <button
-                key={folder}
-                onClick={() => setSelectedFolder(folder)}
-                className={`px-3 py-2 rounded-xl font-bold text-sm transition ${
-                  selectedFolder === folder
-                    ? 'bg-brand text-white'
+                key={w.id}
+                onClick={() => setSelectedWeek(w.id)}
+                className={`shrink-0 px-4 py-2.5 rounded-xl font-bold text-sm transition active:scale-95 ${
+                  selectedWeek === w.id
+                    ? 'bg-brand text-white shadow-floating'
                     : 'bg-surface-alt text-gray-400 hover:bg-white/10'
                 }`}
               >
-                {folder} <span className="opacity-70">({countByFolder(folder)})</span>
+                {w.label}
+                <span className="opacity-70 ml-1">({countByWeek(w.id)})</span>
               </button>
             ))}
+          </div>
+
+          <div>
+            <p className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500 mb-2">
+              <Folder size={12} />
+              {weekLabel} · {WEEKS.find(w => w.id === selectedWeek)?.title}
+            </p>
+            <div className="flex gap-2 overflow-x-auto -mx-4 px-4 scrollbar-none">
+              {folders.map((folder) => (
+                <button
+                  key={folder}
+                  onClick={() => setSelectedFolder(folder)}
+                  className={`shrink-0 px-3 py-2 rounded-lg font-bold text-xs transition active:scale-95 ${
+                    selectedFolder === folder
+                      ? 'bg-brand-light text-brand ring-1 ring-brand/40'
+                      : 'bg-surface-alt text-gray-400 hover:bg-white/10'
+                  }`}
+                >
+                  {folder}
+                  <span className="opacity-70 ml-1">({countByFolder(folder)})</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -527,60 +496,87 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                 {sortOrder === 'newest' ? '최신순' : '오래된순'}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mb-3">카드를 클릭하면 바로 불러와서 이어서 확인할 수 있어요</p>
+            <p className="text-xs text-gray-500 mb-3">카드를 클릭하면 바로 아래에서 재생하며 이어서 확인할 수 있어요</p>
             <div className="grid gap-3">
-              {analysesInFolder.map((analysis) => (
-                <div
-                  key={analysis.id}
-                  onClick={() => handleLoadAnalysis(analysis)}
-                  className="p-4 border border-white/10 rounded-2xl hover:bg-surface-alt active:bg-white/10 transition cursor-pointer"
-                >
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        {analysis.source === 'youtube'
-                          ? <MonitorPlay size={14} className="text-red-500 shrink-0" />
-                          : <Upload size={14} className="text-gray-500 shrink-0" />}
-                        <h4 className="font-bold truncate">
-                          {analysis.source === 'youtube' ? `유튜브 · ${analysis.videoId}` : analysis.filename}
-                        </h4>
+              {analysesInFolder.map((analysis) => {
+                const isActive = analysis.source === 'youtube'
+                  ? (sourceMode === 'youtube' && ytActiveAnalysis?.id === analysis.id)
+                  : (sourceMode === 'file' && selectedAnalysis?.id === analysis.id)
+                return (
+                  <div
+                    key={analysis.id}
+                    onClick={() => handleLoadAnalysis(analysis)}
+                    className={`p-4 border rounded-2xl transition cursor-pointer ${
+                      isActive
+                        ? 'border-brand bg-brand-light'
+                        : 'border-white/10 hover:bg-surface-alt active:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          {analysis.source === 'youtube'
+                            ? <MonitorPlay size={14} className="text-red-500 shrink-0" />
+                            : <Upload size={14} className="text-gray-500 shrink-0" />}
+                          <h4 className="font-bold truncate">
+                            {analysis.source === 'youtube' ? `유튜브 · ${analysis.videoId}` : analysis.filename}
+                          </h4>
+                          {isActive && (
+                            <span className="shrink-0 text-[10px] font-bold text-brand bg-surface px-1.5 py-0.5 rounded-full">
+                              재생 중
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-400">
+                          스크랩 {analysis.scraps.length}개 · {new Date(analysis.uploadedAt).toLocaleString('ko-KR')}
+                        </p>
                       </div>
-                      <p className="text-sm text-gray-400">
-                        스크랩 {analysis.scraps.length}개 · {new Date(analysis.uploadedAt).toLocaleString('ko-KR')}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      {analysis.source !== 'youtube' && (
-                        <button
-                          onClick={() => handleDownloadAnalysis(analysis)}
-                          className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg"
-                          title="다운로드"
-                        >
-                          <Download size={15} />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDeleteAnalysis(analysis.id)}
-                        className="p-2 border border-white/10 hover:border-red-500/30 hover:bg-red-500/10 text-gray-500 hover:text-red-500 rounded-lg transition"
-                        title="삭제"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div onClick={(e) => e.stopPropagation()} className="flex gap-2">
+                          {analysis.source !== 'youtube' && (
+                            <button
+                              onClick={() => handleDownloadAnalysis(analysis)}
+                              className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg"
+                              title="다운로드"
+                            >
+                              <Download size={15} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteAnalysis(analysis.id)}
+                            className="p-2 border border-white/10 hover:border-red-500/30 hover:bg-red-500/10 text-gray-500 hover:text-red-500 rounded-lg transition"
+                            title="삭제"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                        <ChevronRight size={18} className={isActive ? 'text-brand' : 'text-gray-600'} />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
 
         {/* 내 시뮬레이션 업로드 & 스크랩 */}
-        <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-extrabold">내 시뮬레이션 분석</h3>
-            <span className="text-xs font-bold text-gray-500">{selectedFolder}</span>
-          </div>
+        <div ref={playerSectionRef} className="bg-surface rounded-2xl shadow-card border border-white/10 scroll-mt-4 overflow-hidden">
+          <button
+            onClick={() => setAnalysisOpen(!analysisOpen)}
+            className="w-full flex items-center justify-between gap-2 p-4 md:p-6 text-left hover:bg-white/[0.02] transition"
+          >
+            <div className="min-w-0">
+              <h3 className="text-lg font-extrabold">내 시뮬레이션 분석</h3>
+              <p className="text-xs text-gray-500 truncate">{weekLabel} · {selectedFolder}</p>
+            </div>
+            <ChevronDown
+              size={20}
+              className={`shrink-0 text-gray-500 transition-transform ${analysisOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
 
+          <div className={analysisOpen ? 'p-4 md:p-6 pt-0' : 'hidden'}>
           <div className="flex gap-2 mb-4">
             <button
               onClick={() => setSourceMode('file')}
@@ -604,36 +600,21 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
 
           {sourceMode === 'file' && (
             <>
-              <div className="bg-surface-alt rounded-xl p-4 mb-4 space-y-3">
-                {!isRecording ? (
-                  <button
-                    onClick={handleStartRecording}
-                    className="w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition"
-                  >
-                    <Mic size={15} />
-                    지금 바로 녹음하기
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleStopRecording}
-                    className="w-full flex items-center justify-center gap-1.5 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2.5 rounded-xl text-sm transition animate-pulse"
-                  >
-                    <Square size={14} fill="currentColor" />
-                    녹음 중... {formatTime(recordSeconds)} (탭하여 종료)
-                  </button>
-                )}
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <div className="flex-1 h-px bg-white/10" />
-                  또는 파일 선택
-                  <div className="flex-1 h-px bg-white/10" />
-                </div>
+              <label className="block bg-surface-alt hover:bg-white/10 border border-dashed border-white/15 hover:border-brand/50 rounded-xl p-5 mb-4 cursor-pointer transition text-center">
                 <input
                   type="file"
                   accept="video/*,audio/*"
                   onChange={handleFileChange}
-                  className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-light file:text-brand hover:file:bg-red-500/20"
+                  className="hidden"
                 />
-              </div>
+                <Upload size={22} className="mx-auto text-brand mb-2" />
+                <p className="text-sm font-bold text-gray-200">
+                  {file ? file.name : '녹음/영상 파일 선택'}
+                </p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  {file ? '다른 파일을 고르려면 다시 눌러주세요' : 'mp3 · wav · mp4 등 · 내 기기에만 저장돼요'}
+                </p>
+              </label>
 
               {file && (
                 <div className="space-y-4">
@@ -718,17 +699,20 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
           {sourceMode === 'youtube' && (
             <div className="space-y-4">
               {!ytActiveAnalysis && (
-                <div className="bg-surface-alt rounded-xl p-4 space-y-3">
+                <div className="bg-surface-alt rounded-xl p-4 space-y-4">
                   <div>
-                    <label className="text-xs font-bold text-gray-400 mb-1.5 block">유튜브 링크</label>
+                    <label className="text-xs font-bold text-gray-400 mb-2 block">유튜브 링크</label>
                     <input
-                      type="text"
+                      type="url"
+                      inputMode="url"
                       value={ytUrlInput}
                       onChange={(e) => handleYtUrlChange(e.target.value)}
-                      placeholder="https://youtu.be/xxxxxxxxxxx"
-                      className="w-full p-2.5 border border-white/10 rounded-xl text-sm bg-surface focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                      placeholder="https://youtu.be/..."
+                      className="w-full p-3.5 border border-white/10 rounded-xl text-base bg-surface focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                     />
-                    <p className="text-[11px] text-gray-500 mt-1.5">링크에 시간(t=)이 포함되어 있으면 자동으로 아래에 채워져요</p>
+                    <p className="text-[11px] text-gray-500 mt-1.5">
+                      링크에 시간(t=)이 있으면 아래가 자동으로 채워져요
+                    </p>
                   </div>
                   <TimeHMSInput
                     hours={ytStartHMS.hours}
@@ -739,7 +723,8 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                   />
                   <button
                     onClick={handleYtLoad}
-                    className="w-full bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition"
+                    disabled={!ytUrlInput.trim()}
+                    className="w-full bg-brand hover:bg-brand-dark disabled:opacity-40 text-white font-bold py-3.5 rounded-xl transition active:scale-95"
                   >
                     불러오기
                   </button>
@@ -766,21 +751,27 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
               )}
             </div>
           )}
+          </div>
         </div>
 
-        {/* 더보기 (인사이트 · 피드백) - 접기/펼치기 */}
+        {/* 인사이트 · 피드백 */}
         <div className="bg-surface rounded-2xl shadow-card border border-white/10 overflow-hidden">
           <button
             onClick={() => setNotesOpen(!notesOpen)}
-            className="w-full flex items-center justify-between p-4 md:p-6"
+            className="w-full flex items-center justify-between gap-2 p-4 md:p-6 text-left hover:bg-white/[0.02] transition"
           >
-            <span className="flex items-center gap-2 text-sm font-extrabold text-gray-400">
-              <Sparkles size={16} className="text-gray-500" />
-              인사이트 & 피드백 더보기
-            </span>
+            <div className="flex items-center gap-2 min-w-0">
+              <Sparkles size={18} className="text-brand shrink-0" />
+              <div className="min-w-0">
+                <h3 className="text-lg font-extrabold">인사이트 & 피드백</h3>
+                <p className="text-xs text-gray-500 truncate">
+                  {weekLabel}에 배운 점과 받은 피드백을 기록해요
+                </p>
+              </div>
+            </div>
             <ChevronDown
-              size={18}
-              className={`text-gray-500 transition-transform ${notesOpen ? 'rotate-180' : ''}`}
+              size={20}
+              className={`shrink-0 text-gray-500 transition-transform ${notesOpen ? 'rotate-180' : ''}`}
             />
           </button>
 

@@ -4,7 +4,7 @@ export function getStorageData() {
   const data = localStorage.getItem(STORAGE_KEY)
   return data
     ? JSON.parse(data)
-    : { analyses: [], recordings: [], emergencyItems: [], insights: [], feedbackEntries: [], refScraps: [], adminReferenceVideos: [], adminFolders: {} }
+    : { analyses: [], recordings: [], insights: [], feedbackEntries: [], refScraps: [], adminReferenceVideos: [], adminFolders: {} }
 }
 
 export function saveStorageData(data) {
@@ -53,35 +53,6 @@ export function saveRecording(recording) {
 export function deleteRecording(id) {
   const data = getStorageData()
   data.recordings = data.recordings.filter(r => r.id !== id)
-  saveStorageData(data)
-}
-
-// 돌발사항 (돌발 연습실)
-export function getEmergencyItems() {
-  const data = getStorageData()
-  return data.emergencyItems || []
-}
-
-export function saveEmergencyItem(item) {
-  const data = getStorageData()
-  data.emergencyItems = data.emergencyItems || []
-  data.emergencyItems.push(item)
-  saveStorageData(data)
-}
-
-export function updateEmergencyItem(id, item) {
-  const data = getStorageData()
-  data.emergencyItems = data.emergencyItems || []
-  const index = data.emergencyItems.findIndex(e => e.id === id)
-  if (index !== -1) {
-    data.emergencyItems[index] = item
-    saveStorageData(data)
-  }
-}
-
-export function deleteEmergencyItem(id) {
-  const data = getStorageData()
-  data.emergencyItems = (data.emergencyItems || []).filter(e => e.id !== id)
   saveStorageData(data)
 }
 
