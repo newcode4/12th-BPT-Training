@@ -117,6 +117,12 @@ export default function QACommunity({ author, onLogout }) {
     loadQuestions()
   }, [])
 
+  // 목록에서 스크롤을 내린 채로 글을 선택하면, 상세 화면도 그 위치 그대로 이어져
+  // 제목/본문 윗부분이 화면 위로 잘려 보인다. 화면(글쓰기/상세)이 바뀔 때는 맨 위로 올린다.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [view])
+
   // 돌발 연습실에서 원고를 저장하면 공개 답변도 같이 바뀌므로, 상세 화면을 새로 불러와 반영한다
   const refreshSelectedQuestion = async () => {
     if (!selectedQuestion) return
