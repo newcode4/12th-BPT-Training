@@ -511,6 +511,69 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
         <WeekReferenceVideos week={selectedWeek} />
         <AllReplaysArchive />
 
+        {/* 저장된 분석 목록 (현재 주차 + 폴더) - 관리하기 편하도록 업로드보다 위에 배치 */}
+        {analysesInFolder.length > 0 && (
+          <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="flex items-center gap-2 text-lg font-extrabold">
+                <Archive size={18} className="text-gray-500" />
+                {selectedFolder} 저장된 분석 ({analysesInFolder.length})
+              </h3>
+              <button
+                onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
+                className="flex items-center gap-1 text-xs font-bold text-gray-400 bg-surface-alt hover:bg-white/10 px-3 py-1.5 rounded-full transition"
+              >
+                <ArrowUpDown size={12} />
+                {sortOrder === 'newest' ? '최신순' : '오래된순'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">카드를 클릭하면 바로 불러와서 이어서 확인할 수 있어요</p>
+            <div className="grid gap-3">
+              {analysesInFolder.map((analysis) => (
+                <div
+                  key={analysis.id}
+                  onClick={() => handleLoadAnalysis(analysis)}
+                  className="p-4 border border-white/10 rounded-2xl hover:bg-surface-alt active:bg-white/10 transition cursor-pointer"
+                >
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        {analysis.source === 'youtube'
+                          ? <MonitorPlay size={14} className="text-red-500 shrink-0" />
+                          : <Upload size={14} className="text-gray-500 shrink-0" />}
+                        <h4 className="font-bold truncate">
+                          {analysis.source === 'youtube' ? `유튜브 · ${analysis.videoId}` : analysis.filename}
+                        </h4>
+                      </div>
+                      <p className="text-sm text-gray-400">
+                        스크랩 {analysis.scraps.length}개 · {new Date(analysis.uploadedAt).toLocaleString('ko-KR')}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {analysis.source !== 'youtube' && (
+                        <button
+                          onClick={() => handleDownloadAnalysis(analysis)}
+                          className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg"
+                          title="다운로드"
+                        >
+                          <Download size={15} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteAnalysis(analysis.id)}
+                        className="p-2 border border-white/10 hover:border-red-500/30 hover:bg-red-500/10 text-gray-500 hover:text-red-500 rounded-lg transition"
+                        title="삭제"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 내 시뮬레이션 업로드 & 스크랩 */}
         <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">
@@ -704,69 +767,6 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
             </div>
           )}
         </div>
-
-        {/* 저장된 분석 목록 (현재 주차 + 폴더) */}
-        {analysesInFolder.length > 0 && (
-          <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="flex items-center gap-2 text-lg font-extrabold">
-                <Archive size={18} className="text-gray-500" />
-                {selectedFolder} 저장된 분석 ({analysesInFolder.length})
-              </h3>
-              <button
-                onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
-                className="flex items-center gap-1 text-xs font-bold text-gray-400 bg-surface-alt hover:bg-white/10 px-3 py-1.5 rounded-full transition"
-              >
-                <ArrowUpDown size={12} />
-                {sortOrder === 'newest' ? '최신순' : '오래된순'}
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mb-3">카드를 클릭하면 바로 불러와서 이어서 확인할 수 있어요</p>
-            <div className="grid gap-3">
-              {analysesInFolder.map((analysis) => (
-                <div
-                  key={analysis.id}
-                  onClick={() => handleLoadAnalysis(analysis)}
-                  className="p-4 border border-white/10 rounded-2xl hover:bg-surface-alt active:bg-white/10 transition cursor-pointer"
-                >
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        {analysis.source === 'youtube'
-                          ? <MonitorPlay size={14} className="text-red-500 shrink-0" />
-                          : <Upload size={14} className="text-gray-500 shrink-0" />}
-                        <h4 className="font-bold truncate">
-                          {analysis.source === 'youtube' ? `유튜브 · ${analysis.videoId}` : analysis.filename}
-                        </h4>
-                      </div>
-                      <p className="text-sm text-gray-400">
-                        스크랩 {analysis.scraps.length}개 · {new Date(analysis.uploadedAt).toLocaleString('ko-KR')}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      {analysis.source !== 'youtube' && (
-                        <button
-                          onClick={() => handleDownloadAnalysis(analysis)}
-                          className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg"
-                          title="다운로드"
-                        >
-                          <Download size={15} />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDeleteAnalysis(analysis.id)}
-                        className="p-2 border border-white/10 hover:border-red-500/30 hover:bg-red-500/10 text-gray-500 hover:text-red-500 rounded-lg transition"
-                        title="삭제"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* 더보기 (인사이트 · 피드백) - 접기/펼치기 */}
         <div className="bg-surface rounded-2xl shadow-card border border-white/10 overflow-hidden">
