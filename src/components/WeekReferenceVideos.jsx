@@ -9,23 +9,22 @@ import TimeHMSInput from './TimeHMSInput'
 // 각 주차 예시 시뮬레이션 영상 (매니저/팀장님 실전 영상)
 const REFERENCE_VIDEOS = {
   '0': [
-    { presenter: '이아름 매니저', videoId: 'r7GNZoB_uM4', startLabel: '5:23:49' },
     { presenter: '주호 팀장님', videoId: 'r7GNZoB_uM4', startLabel: '5:23:49' },
   ],
   '1': [
-    { presenter: '이아름 매니저', videoId: '-lKqaN2CRkM', startLabel: '4:18:42' },
+    { presenter: '이아름 매니저', videoId: 'WsoB0Gy-IXM', startLabel: '4:12:30', endLabel: '5:02:35' },
     { presenter: '주호 팀장님', videoId: '-lKqaN2CRkM', startLabel: '4:18:42' },
   ],
   '2': [
-    { presenter: '이아름 매니저', videoId: 'fnhkwUUw1IY', startLabel: '6:26:29' },
+    { presenter: '이아름 매니저', videoId: '5HC6s043Frg', startLabel: '6:03:00', endLabel: '6:58:03' },
     { presenter: '주호 팀장님', videoId: 'fnhkwUUw1IY', startLabel: '6:26:29' },
   ],
   '3': [
-    { presenter: '이아름 매니저', videoId: 'rVScZPpUAh4', startLabel: '4:58:14' },
+    { presenter: '이아름 매니저', videoId: 'pSVmTM7NYUg', startLabel: '2:02:00', endLabel: '2:49:30' },
     { presenter: '주호 팀장님', videoId: 'rVScZPpUAh4', startLabel: '4:58:14' },
   ],
   '4': [
-    { presenter: '이아름 매니저', videoId: 'fGxzSRnk27E', startLabel: '5:8:20' },
+    { presenter: '이아름 매니저', videoId: 'WfmLlaUEvaQ', startLabel: '5:32:00', endLabel: '6:21:40' },
     { presenter: '주호 팀장님', videoId: 'fGxzSRnk27E', startLabel: '5:8:20' },
   ],
 }
@@ -92,7 +91,9 @@ function ReferenceVideoCard({ video }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-bold text-gray-200">{video.presenter}</span>
-        <span className="text-xs text-gray-500">{video.startLabel} 부터 시작</span>
+        <span className="text-xs text-gray-500">
+          {video.startLabel}{video.endLabel ? ` ~ ${video.endLabel}` : ''} 부터 시작
+        </span>
       </div>
 
       <div className="aspect-video rounded-xl overflow-hidden bg-black">
