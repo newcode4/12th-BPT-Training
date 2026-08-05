@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Bookmark, Trash2, PlayCircle, Plus, ShieldCheck } from 'lucide-react'
 import { parseHMSToSeconds, hmsToSeconds, formatTime, generateUUID } from '../utils/formatters'
-import { getRefScraps, saveRefScrap, deleteRefScrap, getAdminReferenceVideos, saveAdminReferenceVideo, deleteAdminReferenceVideo } from '../utils/storage'
+import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 import { loadYouTubeAPI, parseYouTubeUrl } from '../utils/youtube'
 import { isAdminMode } from '../utils/admin'
 import TimeHMSInput from './TimeHMSInput'
@@ -34,12 +34,18 @@ function ReferenceVideoCard({ video }) {
   const mountRef = useRef(null)
   const playerRef = useRef(null)
   const [ready, setReady] = useState(false)
-  const [scraps, setScraps] = useState(() => getRefScraps(video.videoId))
+  const [scraps, setScraps] = useState([])
   const [noteDraft, setNoteDraft] = useState(null) // { timestamp, text } or null
+  const author = localStorage.getItem('qa-author') || '익명'
 
   useEffect(() => {
     setReady(false)
-    setScraps(getRefScraps(video.videoId))
+    setScraps([])
+    listRecords('ref_scrap')
+      .then((rows) => setScraps(
+        rows.filter(s => s.videoId === video.videoId).sort((a, b) => a.timestamp - b.timestamp)
+      ))
+      .catch(() => {})
     let cancelled = false
     loadYouTubeAPI().then((YT) => {
       if (cancelled || !mountRef.current) return
@@ -70,11 +76,13 @@ function ReferenceVideoCard({ video }) {
       videoId: video.videoId,
       timestamp: noteDraft.timestamp,
       note: noteDraft.text.trim(),
+      author,
       createdAt: new Date().toISOString(),
     }
-    saveRefScrap(scrap)
     setScraps([...scraps, scrap].sort((a, b) => a.timestamp - b.timestamp))
     setNoteDraft(null)
+    putRecord('ref_scrap', scrap, { author })
+      .catch(e => alert('스크랩 저장에 실패했어요: ' + e.message))
   }
 
   const handleJump = (t) => {
@@ -83,8 +91,8 @@ function ReferenceVideoCard({ video }) {
   }
 
   const handleDelete = (id) => {
-    deleteRefScrap(id)
     setScraps(scraps.filter((s) => s.id !== id))
+    removeRecord('ref_scrap', id).catch(e => console.error('스크랩 삭제 실패', e))
   }
 
   return (
@@ -148,7 +156,10 @@ function ReferenceVideoCard({ video }) {
                 <PlayCircle size={13} />
                 {formatTime(s.timestamp)}
               </button>
-              <p className="flex-1 text-sm text-gray-200">{s.note || '(메모 없음)'}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-200">{s.note || '(메모 없음)'}</p>
+                {s.author && <p className="text-[10px] text-gray-500 mt-0.5">{s.author}</p>}
+              </div>
               <button onClick={() => handleDelete(s.id)} className="text-gray-600 hover:text-red-500 shrink-0">
                 <Trash2 size={14} />
               </button>
@@ -180,11 +191,12 @@ function AdminAddVideoForm({ week, onAdded }) {
       startLabel: `${hms.hours}:${String(hms.minutes).padStart(2, '0')}:${String(hms.seconds).padStart(2, '0')}`,
       startSeconds,
     }
-    saveAdminReferenceVideo(video)
     onAdded(video)
     setPresenter('')
     setUrl('')
     setHms({ hours: 0, minutes: 0, seconds: 0 })
+    putRecord('admin_video', video, { week })
+      .catch(e => alert('예시 영상 저장에 실패했어요: ' + e.message))
   }
 
   return (
@@ -226,23 +238,27 @@ function AdminAddVideoForm({ week, onAdded }) {
 }
 
 export default function WeekReferenceVideos({ week }) {
-  const [adminVideos, setAdminVideos] = useState(() => getAdminReferenceVideos(week))
+  const [adminVideos, setAdminVideos] = useState([])
   const [selectedIndex, setSelectedIndex] = useState(0)
   const admin = isAdminMode()
 
   useEffect(() => {
-    setAdminVideos(getAdminReferenceVideos(week))
+    let cancelled = false
     setSelectedIndex(0)
+    setAdminVideos([])
+    listRecords('admin_video', { week })
+      .then((rows) => { if (!cancelled) setAdminVideos(rows) })
+      .catch(() => {})
+    return () => { cancelled = true }
   }, [week])
 
   const handleDeleteAdminVideo = (id) => {
-    const idx = adminVideos.findIndex(v => v.id === id)
-    deleteAdminReferenceVideo(id)
     const next = adminVideos.filter(v => v.id !== id)
     setAdminVideos(next)
     if (selectedIndex >= (REFERENCE_VIDEOS[week] || []).length + next.length) {
       setSelectedIndex(0)
     }
+    removeRecord('admin_video', id).catch(e => console.error('예시 영상 삭제 실패', e))
   }
 
   const curated = REFERENCE_VIDEOS[week] || []

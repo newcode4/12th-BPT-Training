@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Mic, Shuffle, AlertTriangle, Loader2, CloudOff, Search } from 'lucide-react'
+import { PenLine, Shuffle, AlertTriangle, Loader2, CloudOff, Search, Check } from 'lucide-react'
 import { getRandomItem } from '../utils/formatters'
 import { supabase, supabaseConfigured } from '../utils/supabase'
 import { WEEKS } from '../utils/weeks'
 import { TOPICS, parseTags } from '../utils/qaTags'
-import AnswerPracticeModal from '../components/AnswerPracticeModal'
+import { getScript } from '../utils/storage'
+import ScriptPracticeModal from '../components/ScriptPracticeModal'
 
 function Chip({ active, onClick, children }) {
   return (
@@ -78,11 +79,11 @@ export default function PracticeRoom() {
       <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 space-y-4">
         <div>
           <h2 className="flex items-center gap-2 text-xl md:text-2xl font-extrabold mb-1">
-            <Mic size={22} className="text-brand shrink-0" />
+            <PenLine size={22} className="text-brand shrink-0" />
             돌발 연습실
           </h2>
           <p className="text-sm text-gray-400">
-            Q&A 커뮤니티에 올라온 돌발질문으로 1분 말하기를 연습해보세요
+            Q&A 커뮤니티에 올라온 돌발질문에 어떻게 답할지 스크립트를 써보세요
           </p>
         </div>
 
@@ -140,7 +141,9 @@ export default function PracticeRoom() {
       ) : (
         <div className="space-y-2">
           <p className="text-sm text-gray-400 px-1">{visible.length}개의 돌발질문</p>
-          {visible.map((q) => (
+          {visible.map((q) => {
+            const hasScript = Boolean(getScript(q.id))
+            return (
             <div
               key={q.id}
               className="p-4 bg-surface rounded-2xl border border-white/10 shadow-card"
@@ -160,17 +163,24 @@ export default function PracticeRoom() {
                     {WEEKS.find(w => w.id === q.week)?.label || `${q.week}주차`}
                   </span>
                 )}
+                {hasScript && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
+                    <Check size={10} />
+                    스크립트 작성함
+                  </span>
+                )}
               </div>
               <p className="font-bold text-gray-100 leading-snug mb-3">{q.title}</p>
               <button
                 onClick={() => setPracticeQuestion(q)}
                 className="w-full flex items-center justify-center gap-1.5 bg-brand-light hover:bg-red-500/20 text-brand font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
               >
-                <Mic size={14} />
-                1분 말하기 연습
+                <PenLine size={14} />
+                {hasScript ? '스크립트 이어쓰기' : '스크립트 작성하기'}
               </button>
             </div>
-          ))}
+            )
+          })}
           {visible.length === 0 && (
             <div className="text-center py-12 bg-surface rounded-2xl border border-white/10 space-y-1">
               <p className="text-gray-400 font-bold">조건에 맞는 돌발질문이 없어요</p>
@@ -181,12 +191,10 @@ export default function PracticeRoom() {
       )}
 
       {practiceQuestion && (
-        <AnswerPracticeModal
-          answerContent={
-            practiceQuestion.content
-              ? `${practiceQuestion.title}\n\n${practiceQuestion.content}`
-              : practiceQuestion.title
-          }
+        <ScriptPracticeModal
+          questionId={practiceQuestion.id}
+          questionTitle={practiceQuestion.title}
+          questionContent={practiceQuestion.content}
           onClose={() => setPracticeQuestion(null)}
         />
       )}

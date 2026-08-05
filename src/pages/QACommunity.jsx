@@ -82,6 +82,7 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
   const [newWeek, setNewWeek] = useState('')
   const [newTopic, setNewTopic] = useState('')
   const [showContentField, setShowContentField] = useState(false)
+  const [editingId, setEditingId] = useState(null)
 
   const loadQuestions = async () => {
     if (!supabaseConfigured) {
@@ -124,31 +125,64 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
     setNewTopic('')
     setNewCategory('unexpected')
     setShowContentField(false)
+    setEditingId(null)
   }
 
-  const handleCreateQuestion = async () => {
+  const handleStartEdit = (question) => {
+    setEditingId(question.id)
+    setNewCategory(question.category || 'unexpected')
+    setNewTitle(question.title || '')
+    setNewContent(question.content || '')
+    setNewWeek(question.week || '')
+    setNewTopic(question.topic || '')
+    setShowContentField(Boolean(question.content))
+    setView('write')
+  }
+
+  const handleSubmitQuestion = async () => {
     if (!newTitle.trim()) {
       alert('질문을 입력해주세요.')
       return
     }
-    if (newCategory === 'unexpected' && !newTopic) {
-      alert('돌발질문 유형을 선택해주세요.')
+    if (newCategory === 'unexpected' && !newWeek) {
+      alert('주차를 선택해주세요.')
       return
     }
     setSubmitting(true)
     const tags = newCategory === 'unexpected'
       ? buildTags({ week: newWeek, topic: newTopic })
       : []
+    const payload = {
+      category: newCategory,
+      title: newTitle.trim(),
+      content: newContent.trim(),
+      tags,
+    }
+
+    if (editingId) {
+      const { data, error } = await supabase
+        .from('questions')
+        .update(payload)
+        .eq('id', editingId)
+        .select('*, answers(*)')
+        .single()
+
+      setSubmitting(false)
+      if (error) {
+        alert('수정에 실패했어요: ' + error.message)
+        return
+      }
+      const updated = mapQuestion(data)
+      setQuestions(questions.map(q => (q.id === editingId ? updated : q)))
+      setSelectedQuestion(updated)
+      resetWriteForm()
+      setView('detail')
+      return
+    }
 
     const { data, error } = await supabase
       .from('questions')
-      .insert({
-        category: newCategory,
-        title: newTitle.trim(),
-        content: newContent.trim(),
-        tags,
-        author,
-      })
+      .insert({ ...payload, author })
       .select('*, answers(*)')
       .single()
 
@@ -450,12 +484,16 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
         <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
           <div className="flex items-center gap-3 mb-5">
             <button
-              onClick={() => { resetWriteForm(); setView('list') }}
+              onClick={() => {
+                const back = editingId ? 'detail' : 'list'
+                resetWriteForm()
+                setView(back)
+              }}
               className="text-gray-500 hover:text-gray-200"
             >
               <ArrowLeft size={20} />
             </button>
-            <h2 className="text-xl font-extrabold">글쓰기</h2>
+            <h2 className="text-xl font-extrabold">{editingId ? '글 수정' : '글쓰기'}</h2>
           </div>
 
           <div className="space-y-5">
@@ -479,13 +517,33 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
               <>
                 <div>
                   <label className="text-xs font-bold text-gray-400 mb-2 block">
-                    돌발질문 유형 <span className="text-brand">*</span>
+                    주차 <span className="text-brand">*</span>
                   </label>
+                  <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
+                    {WEEKS.map((w) => (
+                      <button
+                        key={w.id}
+                        onClick={() => setNewWeek(w.id)}
+                        className={`shrink-0 flex items-center gap-1 px-3 py-2.5 rounded-xl text-xs font-bold transition active:scale-95 ${
+                          newWeek === w.id
+                            ? 'bg-brand text-white'
+                            : 'bg-surface-alt text-gray-400 hover:bg-white/10'
+                        }`}
+                      >
+                        {newWeek === w.id && <Check size={12} className="shrink-0" />}
+                        {w.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-gray-400 mb-2 block">돌발질문 유형 (선택)</label>
                   <div className="grid grid-cols-2 gap-2">
                     {TOPICS.map((t) => (
                       <button
                         key={t}
-                        onClick={() => setNewTopic(t)}
+                        onClick={() => setNewTopic(newTopic === t ? '' : t)}
                         className={`flex items-center justify-center gap-1 px-2 py-2.5 rounded-xl text-sm font-bold transition active:scale-95 ${
                           newTopic === t
                             ? 'bg-brand text-white'
@@ -494,25 +552,6 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
                       >
                         {newTopic === t && <Check size={13} className="shrink-0" />}
                         {t}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-gray-400 mb-2 block">주차 (선택)</label>
-                  <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
-                    {WEEKS.map((w) => (
-                      <button
-                        key={w.id}
-                        onClick={() => setNewWeek(newWeek === w.id ? '' : w.id)}
-                        className={`shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-95 ${
-                          newWeek === w.id
-                            ? 'bg-brand text-white'
-                            : 'bg-surface-alt text-gray-400 hover:bg-white/10'
-                        }`}
-                      >
-                        {w.label}
                       </button>
                     ))}
                   </div>
@@ -529,7 +568,7 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
                 placeholder={newCategory === 'unexpected' ? '예: 썸네일을 골라주시면 안되요?' : '무엇이 궁금한가요?'}
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreateQuestion()}
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmitQuestion()}
                 autoFocus
                 className="w-full p-3.5 bg-surface-alt border border-white/10 rounded-xl text-base focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
               />
@@ -553,12 +592,12 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
             )}
 
             <button
-              onClick={handleCreateQuestion}
+              onClick={handleSubmitQuestion}
               disabled={submitting}
               className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-bold py-4 rounded-xl transition active:scale-95"
             >
               {submitting && <Loader2 size={16} className="animate-spin" />}
-              등록하기
+              {editingId ? '수정 완료' : '등록하기'}
             </button>
           </div>
         </div>
@@ -571,8 +610,15 @@ export default function QACommunity({ author, onLogout, pendingDraft, onDraftCon
               <ArrowLeft size={20} />
             </button>
             <button
+              onClick={() => handleStartEdit(selectedQuestion)}
+              className="ml-auto flex items-center gap-1 text-sm text-gray-400 hover:text-brand"
+            >
+              <PenSquare size={14} />
+              수정
+            </button>
+            <button
               onClick={() => handleDeleteQuestion(selectedQuestion.id)}
-              className="ml-auto flex items-center gap-1 text-sm text-red-400 hover:text-red-600"
+              className="flex items-center gap-1 text-sm text-red-400 hover:text-red-600"
             >
               <Trash2 size={14} />
               삭제

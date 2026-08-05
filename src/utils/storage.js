@@ -56,6 +56,23 @@ export function deleteRecording(id) {
   saveStorageData(data)
 }
 
+// 돌발질문별 내 대처 스크립트 (내 기기에만 저장)
+export function getScript(questionId) {
+  const data = getStorageData()
+  return (data.scripts || {})[questionId] || ''
+}
+
+export function saveScript(questionId, text) {
+  const data = getStorageData()
+  data.scripts = data.scripts || {}
+  if (text.trim()) {
+    data.scripts[questionId] = text
+  } else {
+    delete data.scripts[questionId]
+  }
+  saveStorageData(data)
+}
+
 // 주차별 집단지성 인사이트
 export function getInsights() {
   const data = getStorageData()

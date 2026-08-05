@@ -2,13 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Video, Bookmark, RotateCcw, Save, Archive, Download, Trash2,
   ChevronDown, ChevronRight, Sparkles, ArrowUpDown, Upload, MonitorPlay, Folder,
-  ShieldCheck, Plus, X
+  ShieldCheck, Plus, X, AlertCircle
 } from 'lucide-react'
 import { generateUUID, formatTime, downloadJSON, hmsToSeconds } from '../utils/formatters'
-import {
-  saveAnalysis, getAnalyses, updateAnalysis, deleteAnalysis,
-  getInsights, getAdminFolders, saveAdminFolder, deleteAdminFolder
-} from '../utils/storage'
+import { getInsights } from '../utils/storage'
+import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 import { parseYouTubeUrl, parseYouTubeStartSeconds } from '../utils/youtube'
 import { saveFileBlob, getFileBlob, deleteFileBlob } from '../utils/fileStore'
 import { isAdminMode } from '../utils/admin'
@@ -31,6 +29,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
   const [sourceMode, setSourceMode] = useState('file') // 'file' | 'youtube'
 
   const [file, setFile] = useState(null)
+  const [needsReattach, setNeedsReattach] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [loopRange, setLoopRange] = useState(null)
   const [analyses, setAnalyses] = useState([])
@@ -45,7 +44,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
   const [notesOpen, setNotesOpen] = useState(false)
   const [analysisOpen, setAnalysisOpen] = useState(true)
   const [sortOrder, setSortOrder] = useState('newest') // 'newest' | 'oldest'
-  const [adminFolders, setAdminFolders] = useState(() => getAdminFolders('0'))
+  const [adminFolders, setAdminFolders] = useState([])
   const [newFolderInput, setNewFolderInput] = useState('')
   const admin = isAdminMode()
   const author = localStorage.getItem('qa-author') || '익명'
@@ -53,26 +52,43 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
   const scrapListRef = useRef(null)
   const lastScrapId = useRef(null)
   const playerSectionRef = useRef(null)
+  const prevWeekRef = useRef(selectedWeek)
 
   useEffect(() => {
-    setAnalyses(getAnalyses())
+    listRecords('analysis').then(setAnalyses).catch((e) => console.error('분석 불러오기 실패', e))
     setInsights(getInsights())
   }, [])
 
   useEffect(() => {
-    setAdminFolders(getAdminFolders(selectedWeek))
+    let cancelled = false
+    listRecords('admin_folder', { week: selectedWeek })
+      .then((rows) => { if (!cancelled) setAdminFolders(rows) })
+      .catch(() => {})
+    return () => { cancelled = true }
   }, [selectedWeek])
 
+  // 저장된 분석을 불러오면 주차/폴더도 함께 바뀌는데, 그때 아래 초기화가 같이 돌면
+  // 방금 불러온 분석이 지워져 "파일을 찾을 수 없다"처럼 보인다. 지금 열려 있는 분석이
+  // 새 주차/폴더에 속하면 초기화를 건너뛴다.
   useEffect(() => {
-    setSelectedFolder(FULL_RECORDING_FOLDER)
-    setYtActiveAnalysis(null)
-    handleNewAnalysis()
-  }, [selectedWeek])
+    const active = selectedAnalysis || ytActiveAnalysis
+    const belongsHere =
+      active &&
+      (active.week || '0') === selectedWeek &&
+      (active.folder || FULL_RECORDING_FOLDER) === selectedFolder
 
-  useEffect(() => {
+    if (belongsHere) {
+      prevWeekRef.current = selectedWeek
+      return
+    }
+
+    if (prevWeekRef.current !== selectedWeek) {
+      prevWeekRef.current = selectedWeek
+      setSelectedFolder(FULL_RECORDING_FOLDER)
+    }
     setYtActiveAnalysis(null)
     handleNewAnalysis()
-  }, [selectedFolder])
+  }, [selectedWeek, selectedFolder])
 
   useEffect(() => {
     if (lastScrapId.current && scrapListRef.current) {
@@ -86,25 +102,44 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
     }
   }, [scraps])
 
-  const folders = [FULL_RECORDING_FOLDER, ...(WEEK_CURRICULUM[selectedWeek] || []), ...adminFolders]
+  const folders = [
+    FULL_RECORDING_FOLDER,
+    ...(WEEK_CURRICULUM[selectedWeek] || []),
+    ...adminFolders.map(f => f.name),
+  ]
 
-  const handleAddFolder = () => {
+  const handleAddFolder = async () => {
     const name = newFolderInput.trim()
     if (!name) return
-    saveAdminFolder(selectedWeek, name)
-    setAdminFolders([...adminFolders, name])
+    if (folders.includes(name)) {
+      alert('이미 있는 폴더예요.')
+      return
+    }
+    const folder = { id: generateUUID(), week: selectedWeek, name }
+    setAdminFolders([...adminFolders, folder])
     setNewFolderInput('')
+    try {
+      await putRecord('admin_folder', folder, { author, week: selectedWeek })
+    } catch (e) {
+      alert('폴더 저장에 실패했어요: ' + e.message)
+      setAdminFolders(adminFolders.filter(f => f.id !== folder.id))
+    }
   }
 
-  const handleDeleteFolder = (name) => {
-    deleteAdminFolder(selectedWeek, name)
-    setAdminFolders(adminFolders.filter(f => f !== name))
-    if (selectedFolder === name) setSelectedFolder(FULL_RECORDING_FOLDER)
+  const handleDeleteFolder = async (folder) => {
+    setAdminFolders(adminFolders.filter(f => f.id !== folder.id))
+    if (selectedFolder === folder.name) setSelectedFolder(FULL_RECORDING_FOLDER)
+    try {
+      await removeRecord('admin_folder', folder.id)
+    } catch (e) {
+      console.error('폴더 삭제 실패', e)
+    }
   }
 
   const applySelectedFile = (selectedFile) => {
     if (!selectedFile) return
     setFile(selectedFile)
+    setNeedsReattach(false)
     setSelectedAnalysis({
       id: generateUUID(),
       week: selectedWeek,
@@ -119,6 +154,25 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
 
   const handleFileChange = (e) => {
     applySelectedFile(e.target.files?.[0])
+  }
+
+  // 저장된 분석의 원본 파일이 사라졌을 때, 같은 분석에 파일만 다시 붙인다 (스크랩 유지)
+  const handleReattachFile = async (e) => {
+    const selectedFile = e.target.files?.[0]
+    if (!selectedFile || !selectedAnalysis) return
+    setFile(selectedFile)
+    setNeedsReattach(false)
+    const updated = { ...selectedAnalysis, filename: selectedFile.name }
+    setSelectedAnalysis(updated)
+    try {
+      // 파일은 내 기기에만, 파일명 변경만 서버에 반영한다
+      await saveFileBlob(updated.id, selectedFile)
+      setAnalyses(analyses.map(a => (a.id === updated.id ? { ...updated, scraps } : a)))
+      await putRecord('analysis', { ...updated, scraps }, { author: updated.author || author, week: updated.week })
+    } catch (err) {
+      console.error('파일 다시 연결 실패', err)
+      alert('파일을 기기에 저장하지 못했어요. 지금 보기는 되지만, 다음에 다시 올려야 할 수 있어요.')
+    }
   }
 
   const handleScrap = () => {
@@ -178,30 +232,48 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
       alert('스크랩이 없습니다.')
       return
     }
-    const analysis = { ...selectedAnalysis, scraps }
+    const analysis = { ...selectedAnalysis, scraps, author: selectedAnalysis.author || author }
     const isExisting = analyses.some(a => a.id === analysis.id)
 
+    let fileSaved = true
     if (file && file.size > 0) {
       try {
         await saveFileBlob(analysis.id, file)
       } catch (e) {
         console.error('파일 저장 실패', e)
+        fileSaved = false
       }
     }
 
+    try {
+      await putRecord('analysis', analysis, { author: analysis.author, week: analysis.week })
+    } catch (e) {
+      alert('스크랩을 서버에 저장하지 못했어요: ' + e.message)
+      return
+    }
+
     if (isExisting) {
-      updateAnalysis(analysis.id, analysis)
       setAnalyses(analyses.map(a => a.id === analysis.id ? analysis : a))
     } else {
-      saveAnalysis(analysis)
       setAnalyses([...analyses, analysis])
     }
-    alert('분석이 저장되었습니다.')
+
+    if (fileSaved) {
+      alert('분석이 저장되었습니다.')
+    } else {
+      // 조용히 넘어가면 나중에 열었을 때 "파일이 사라진" 것처럼 보인다
+      alert(
+        '스크랩 메모는 저장했지만 원본 파일은 기기에 담지 못했어요.\n' +
+        '(저장 공간 부족이거나 파일이 너무 큰 경우예요)\n' +
+        '나중에 이 분석을 열면 같은 파일을 다시 올려주세요.'
+      )
+    }
     handleNewAnalysis()
   }
 
   const handleNewAnalysis = () => {
     setFile(null)
+    setNeedsReattach(false)
     setSelectedAnalysis(null)
     setScraps([])
     setCurrentTime(0)
@@ -212,12 +284,15 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
     downloadJSON(analysis, `analysis-${analysis.filename || analysis.videoId}-${new Date().getTime()}.json`)
   }
 
-  const handleDeleteAnalysis = (id) => {
-    if (confirm('정말로 삭제하시겠습니까?')) {
-      deleteAnalysis(id)
-      deleteFileBlob(id).catch(() => {})
-      setAnalyses(analyses.filter(a => a.id !== id))
-      if (ytActiveAnalysis?.id === id) setYtActiveAnalysis(null)
+  const handleDeleteAnalysis = async (id) => {
+    if (!confirm('정말로 삭제하시겠습니까?')) return
+    deleteFileBlob(id).catch(() => {})
+    setAnalyses(analyses.filter(a => a.id !== id))
+    if (ytActiveAnalysis?.id === id) setYtActiveAnalysis(null)
+    try {
+      await removeRecord('analysis', id)
+    } catch (e) {
+      alert('삭제에 실패했어요: ' + e.message)
     }
   }
 
@@ -230,13 +305,20 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
     } else {
       setSourceMode('file')
       setSelectedAnalysis(analysis)
-      setScraps(analysis.scraps)
-      const blob = await getFileBlob(analysis.id)
-      if (blob) {
-        setFile(new File([blob], analysis.filename, { type: blob.type || 'video/mp4' }))
+      setScraps(analysis.scraps || [])
+      let blob = null
+      try {
+        blob = await getFileBlob(analysis.id)
+      } catch (e) {
+        console.error('파일 불러오기 실패', e)
+      }
+      if (blob && blob.size > 0) {
+        setFile(new File([blob], analysis.filename || '녹음파일', { type: blob.type || 'video/mp4' }))
+        setNeedsReattach(false)
       } else {
-        alert('원본 파일을 찾을 수 없어요. 스크랩 메모는 볼 수 있지만 재생하려면 같은 파일을 다시 업로드해주세요.')
-        setFile(new File([], analysis.filename))
+        // 빈 파일을 넣으면 플레이어가 깨지므로, 다시 연결 안내를 띄운다
+        setFile(null)
+        setNeedsReattach(true)
       }
     }
     setAnalysisOpen(true)
@@ -262,13 +344,15 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
       videoId,
       startSeconds,
       scraps: [],
+      author,
       uploadedAt: new Date().toISOString()
     }
-    saveAnalysis(analysis)
     setAnalyses([...analyses, analysis])
     setYtActiveAnalysis(analysis)
     setYtUrlInput('')
     setYtStartHMS({ hours: 0, minutes: 0, seconds: 0 })
+    putRecord('analysis', analysis, { author, week: selectedWeek })
+      .catch(e => alert('유튜브 링크 저장에 실패했어요: ' + e.message))
   }
 
   const handleYtUrlChange = (url) => {
@@ -281,19 +365,22 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
 
   const handleYtAddScrap = (timestamp, note) => {
     if (!ytActiveAnalysis) return
-    const newScrap = { id: generateUUID(), timestamp, note, createdAt: new Date().toISOString() }
+    const newScrap = { id: generateUUID(), timestamp, note, author, createdAt: new Date().toISOString() }
     const updated = { ...ytActiveAnalysis, scraps: [...ytActiveAnalysis.scraps, newScrap] }
-    updateAnalysis(updated.id, updated)
-    setYtActiveAnalysis(updated)
-    setAnalyses(analyses.map(a => a.id === updated.id ? updated : a))
+    persistYtAnalysis(updated)
   }
 
   const handleYtDeleteScrap = (scrapId) => {
     if (!ytActiveAnalysis) return
     const updated = { ...ytActiveAnalysis, scraps: ytActiveAnalysis.scraps.filter(s => s.id !== scrapId) }
-    updateAnalysis(updated.id, updated)
+    persistYtAnalysis(updated)
+  }
+
+  const persistYtAnalysis = (updated) => {
     setYtActiveAnalysis(updated)
     setAnalyses(analyses.map(a => a.id === updated.id ? updated : a))
+    putRecord('analysis', updated, { author: updated.author || author, week: updated.week })
+      .catch(e => alert('스크랩 저장에 실패했어요: ' + e.message))
   }
 
   const handleAskAboutScrap = (scrap) => {
@@ -447,8 +534,8 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
             {adminFolders.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {adminFolders.map((f) => (
-                  <span key={f} className="inline-flex items-center gap-1 text-xs font-bold bg-surface-alt text-gray-300 px-2.5 py-1 rounded-full">
-                    {f}
+                  <span key={f.id} className="inline-flex items-center gap-1 text-xs font-bold bg-surface-alt text-gray-300 px-2.5 py-1 rounded-full">
+                    {f.name}
                     <button onClick={() => handleDeleteFolder(f)} className="text-gray-500 hover:text-red-500">
                       <X size={12} />
                     </button>
@@ -528,8 +615,17 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                           )}
                         </div>
                         <p className="text-sm text-gray-400">
-                          스크랩 {analysis.scraps.length}개 · {new Date(analysis.uploadedAt).toLocaleString('ko-KR')}
+                          스크랩 {analysis.scraps?.length || 0}개 · {new Date(analysis.uploadedAt).toLocaleString('ko-KR')}
                         </p>
+                        {analysis.author && (
+                          <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            analysis.author === author
+                              ? 'bg-brand-light text-brand'
+                              : 'bg-white/10 text-gray-400'
+                          }`}>
+                            {analysis.author === author ? '내 분석' : analysis.author}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <div onClick={(e) => e.stopPropagation()} className="flex gap-2">
@@ -616,8 +712,38 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                 </p>
               </label>
 
-              {file && (
+              {needsReattach && selectedAnalysis && (
+                <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-amber-300">원본 파일이 기기에 없어요</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
+                        스크랩 메모 {scraps.length}개는 그대로 있어요.
+                        같은 파일을 다시 올리면 이어서 볼 수 있어요.
+                      </p>
+                      {selectedAnalysis.filename && (
+                        <p className="text-[11px] text-gray-500 mt-1 truncate">
+                          찾는 파일: {selectedAnalysis.filename}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <label className="block bg-surface hover:bg-white/10 border border-amber-500/30 rounded-xl py-2.5 cursor-pointer transition text-center text-sm font-bold text-amber-300">
+                    <input
+                      type="file"
+                      accept="video/*,audio/*"
+                      onChange={handleReattachFile}
+                      className="hidden"
+                    />
+                    파일 다시 연결하기
+                  </label>
+                </div>
+              )}
+
+              {(file || needsReattach) && (
                 <div className="space-y-4">
+                  {file && (
                   <VideoPlayer
                     file={file}
                     videoRef={videoRef}
@@ -626,8 +752,9 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                     scraps={scraps}
                     onScrapPlay={handlePlayScrap}
                   />
+                  )}
 
-                  {loopRange && (
+                  {file && loopRange && (
                     <div className="flex items-center justify-between gap-2 bg-brand-light px-3 py-2 rounded-xl">
                       <span className="text-xs font-bold text-brand">
                         🔁 {formatTime(loopRange.start)} ~ {formatTime(loopRange.end)} 구간 반복 중
@@ -642,6 +769,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                   )}
 
                   <div className="flex gap-2">
+                    {file && (
                     <button
                       onClick={handleScrap}
                       className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-xl transition"
@@ -649,9 +777,10 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                       <Bookmark size={16} />
                       스크랩 ({currentTime.toFixed(1)}초)
                     </button>
+                    )}
                     <button
                       onClick={handleNewAnalysis}
-                      className="flex items-center justify-center gap-1.5 bg-white/10 hover:bg-white/15 text-gray-300 font-bold py-3 px-4 rounded-xl transition"
+                      className={`flex items-center justify-center gap-1.5 bg-white/10 hover:bg-white/15 text-gray-300 font-bold py-3 px-4 rounded-xl transition ${file ? '' : 'flex-1'}`}
                     >
                       <RotateCcw size={16} />
                       새로 시작

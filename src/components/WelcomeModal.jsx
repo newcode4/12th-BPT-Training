@@ -1,11 +1,23 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PartyPopper, Flame, Loader2 } from 'lucide-react'
-import { ROSTER, login } from '../utils/auth'
+import { ROSTER, login, getTakenNames } from '../utils/auth'
 
 export default function WelcomeModal({ onComplete }) {
   const [selected, setSelected] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [taken, setTaken] = useState([])
+
+  // 이미 등록해서 사용 중인 이름은 목록에서 빼준다
+  useEffect(() => {
+    let cancelled = false
+    getTakenNames().then((names) => {
+      if (!cancelled) setTaken(names)
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  const available = ROSTER.filter(name => !taken.includes(name))
 
   const handleRegister = async () => {
     const name = selected.trim()
@@ -60,12 +72,17 @@ export default function WelcomeModal({ onComplete }) {
               className="flex-1 min-w-0 p-3 border border-white/10 rounded-xl text-center font-bold bg-surface focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
             >
               <option value="">이름 선택</option>
-              {ROSTER.map((name) => (
+              {available.map((name) => (
                 <option key={name} value={name}>{name}</option>
               ))}
             </select>
             <span className="text-sm font-bold text-gray-400 whitespace-nowrap shrink-0">예비 트레이너</span>
           </div>
+          {taken.length > 0 && (
+            <p className="text-[11px] text-gray-500 text-center mt-2">
+              이미 등록한 {taken.length}명은 목록에서 빠져 있어요
+            </p>
+          )}
           {error && <p className="text-xs font-bold text-red-400 text-center mt-2">{error}</p>}
         </div>
 

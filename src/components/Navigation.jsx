@@ -1,9 +1,9 @@
-import { Video, MessageCircle, Mic, Rocket, User, PartyPopper } from 'lucide-react'
+import { Video, MessageCircle, PenLine, Rocket, User, PartyPopper } from 'lucide-react'
 
 const navItems = [
   { id: 'analysis', label: '시뮬레이션 분석실', short: '분석실', icon: Video },
   { id: 'qa', label: 'Q&A 커뮤니티', short: 'Q&A', icon: MessageCircle },
-  { id: 'practice', label: '돌발 연습실', short: '돌발 연습', icon: Mic },
+  { id: 'practice', label: '돌발 연습실', short: '돌발 연습', icon: PenLine },
 ]
 
 const SIMULATOR_URL = 'https://azuremooni.github.io/businesspt-simulator/'

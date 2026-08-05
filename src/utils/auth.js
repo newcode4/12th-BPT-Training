@@ -26,6 +26,20 @@ export function clearSession() {
   localStorage.removeItem(SESSION_KEY)
 }
 
+// 이미 다른 기기에서 사용 중인 이름 목록. 명단에서 빼주면 헛클릭이 줄어든다.
+export async function getTakenNames() {
+  if (!supabaseConfigured) return []
+  const staleBefore = new Date(Date.now() - STALE_MS).toISOString()
+  const { data, error } = await supabase
+    .from('students')
+    .select('name, active_token, last_seen')
+    .not('active_token', 'is', null)
+    .gte('last_seen', staleBefore)
+
+  if (error) return []
+  return (data || []).map(s => s.name)
+}
+
 export async function login(name) {
   if (!ROSTER.includes(name)) {
     return { ok: false, error: '명단에 없는 이름이에요.' }

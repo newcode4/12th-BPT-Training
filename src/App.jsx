@@ -3,6 +3,7 @@ import Navigation from './components/Navigation'
 import ProfileModal from './components/ProfileModal'
 import WelcomeModal from './components/WelcomeModal'
 import Footer from './components/Footer'
+import SimulatorShortcut from './components/SimulatorShortcut'
 import VideoAnalysisRoom from './pages/VideoAnalysisRoom'
 import QACommunity from './pages/QACommunity'
 import PracticeRoom from './pages/PracticeRoom'
@@ -94,6 +95,7 @@ export default function App() {
         {renderPage()}
       </main>
       <Footer />
+      <SimulatorShortcut />
 
       {showProfile && (
         <ProfileModal
