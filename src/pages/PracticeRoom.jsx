@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Mic, Shuffle, AlertTriangle, Globe, Lock, Star, FolderOpen, Trash2, Tag } from 'lucide-react'
+import { Mic, Shuffle, AlertTriangle, Globe, Lock, Star, FolderOpen, Trash2, Tag, MessageCircle, Download, Loader2 } from 'lucide-react'
 import { generateUUID, formatDate, getRandomItem } from '../utils/formatters'
 import { getEmergencyItems, saveEmergencyItem, updateEmergencyItem, deleteEmergencyItem } from '../utils/storage'
+import { supabase, supabaseConfigured } from '../utils/supabase'
 import { WEEKS } from '../utils/weeks'
 import AnswerPracticeModal from '../components/AnswerPracticeModal'
 
@@ -18,8 +19,27 @@ export default function PracticeRoom() {
   const [practiceItem, setPracticeItem] = useState(null)
   const author = localStorage.getItem('qa-author') || '익명'
 
+  const [qaQuestions, setQaQuestions] = useState([])
+  const [qaLoading, setQaLoading] = useState(false)
+  const [qaOpen, setQaOpen] = useState(false)
+  const [qaRandom, setQaRandom] = useState(null)
+
   useEffect(() => {
     setItems(getEmergencyItems())
+  }, [])
+
+  useEffect(() => {
+    if (!supabaseConfigured) return
+    setQaLoading(true)
+    supabase
+      .from('questions')
+      .select('id, title, category, created_at')
+      .eq('category', 'unexpected')
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (!error) setQaQuestions(data || [])
+        setQaLoading(false)
+      })
   }, [])
 
   useEffect(() => {
@@ -81,6 +101,23 @@ export default function PracticeRoom() {
     setRandomItem(picked)
   }
 
+  const handleQaRandomPick = () => {
+    const picked = getRandomItem(qaQuestions)
+    if (!picked) {
+      alert('Q&A 커뮤니티에 등록된 돌발질문이 없어요.')
+      return
+    }
+    setQaRandom(picked)
+  }
+
+  const handleQaPractice = (question) => {
+    setPracticeItem({
+      situation: question.title,
+      myAnswer: '',
+      fromQa: true
+    })
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
@@ -139,6 +176,70 @@ export default function PracticeRoom() {
           </div>
         )}
       </div>
+
+      {/* Q&A 커뮤니티에서 가져오기 */}
+      {supabaseConfigured && (
+        <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="flex items-center gap-1.5 text-lg font-extrabold">
+              <MessageCircle size={18} className="text-brand" />
+              Q&A 커뮤니티에서 가져오기
+            </h3>
+            <button
+              onClick={() => setQaOpen(!qaOpen)}
+              className="text-xs font-bold text-gray-500 hover:text-brand"
+            >
+              {qaOpen ? '목록 닫기' : `목록 보기 (${qaQuestions.length})`}
+            </button>
+          </div>
+
+          <button
+            onClick={handleQaRandomPick}
+            disabled={qaLoading}
+            className="w-full flex items-center justify-center gap-1.5 bg-surface-alt hover:bg-white/10 text-gray-200 font-bold py-3 rounded-xl transition disabled:opacity-50"
+          >
+            {qaLoading ? <Loader2 size={15} className="animate-spin" /> : <Shuffle size={15} />}
+            Q&A 돌발질문 랜덤으로 가져오기
+          </button>
+
+          {qaRandom && (
+            <div className="p-4 bg-brand-light border border-red-500/20 rounded-2xl space-y-2">
+              <p className="flex items-center gap-1 text-xs font-bold text-brand">
+                <AlertTriangle size={12} />
+                Q&A 돌발질문
+              </p>
+              <p className="text-gray-100 whitespace-pre-wrap font-bold">{qaRandom.title}</p>
+              <button
+                onClick={() => handleQaPractice(qaRandom)}
+                className="mt-2 w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl transition"
+              >
+                <Mic size={15} />
+                1분 말하기 연습
+              </button>
+            </div>
+          )}
+
+          {qaOpen && (
+            <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+              {qaQuestions.length === 0 && !qaLoading && (
+                <p className="text-sm text-gray-500 text-center py-4">Q&A 커뮤니티에 등록된 돌발질문이 없어요.</p>
+              )}
+              {qaQuestions.map((q) => (
+                <div key={q.id} className="flex items-center gap-2 p-3 bg-surface-alt rounded-xl">
+                  <p className="flex-1 text-sm text-gray-200 truncate">{q.title}</p>
+                  <button
+                    onClick={() => handleQaPractice(q)}
+                    className="flex items-center gap-1 shrink-0 text-xs font-bold bg-brand hover:bg-brand-dark text-white px-2.5 py-1.5 rounded-lg transition"
+                  >
+                    <Download size={11} />
+                    가져오기
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 돌발사항 추가 */}
       <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 space-y-3">
@@ -281,7 +382,11 @@ export default function PracticeRoom() {
 
       {practiceItem && (
         <AnswerPracticeModal
-          answerContent={`[돌발 상황]\n${practiceItem.situation}\n\n[내 답변]\n${practiceItem.myAnswer}`}
+          answerContent={
+            practiceItem.myAnswer
+              ? `[돌발 상황]\n${practiceItem.situation}\n\n[내 답변]\n${practiceItem.myAnswer}`
+              : `[돌발 상황]\n${practiceItem.situation}`
+          }
           onClose={() => setPracticeItem(null)}
         />
       )}

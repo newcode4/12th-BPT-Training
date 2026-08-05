@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Video, Bookmark, RotateCcw, Save, Archive, Download, Trash2,
   ChevronDown, Sparkles, ArrowUpDown, Upload, MonitorPlay, Folder,
-  ShieldCheck, Plus, X
+  ShieldCheck, Plus, X, Mic, Square
 } from 'lucide-react'
 import { generateUUID, formatTime, downloadJSON, hmsToSeconds } from '../utils/formatters'
 import {
@@ -52,6 +52,12 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
   const scrapListRef = useRef(null)
   const lastScrapId = useRef(null)
 
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordSeconds, setRecordSeconds] = useState(0)
+  const mediaRecorderRef = useRef(null)
+  const recordStreamRef = useRef(null)
+  const recordChunksRef = useRef([])
+
   useEffect(() => {
     setAnalyses(getAnalyses())
     setInsights(getInsights())
@@ -100,22 +106,69 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
     if (selectedFolder === name) setSelectedFolder(FULL_RECORDING_FOLDER)
   }
 
+  const applySelectedFile = (selectedFile) => {
+    if (!selectedFile) return
+    setFile(selectedFile)
+    setSelectedAnalysis({
+      id: generateUUID(),
+      week: selectedWeek,
+      folder: selectedFolder,
+      source: 'file',
+      filename: selectedFile.name,
+      uploadedAt: new Date().toISOString(),
+      scraps: []
+    })
+    setScraps([])
+  }
+
   const handleFileChange = (e) => {
-    const selectedFile = e.target.files?.[0]
-    if (selectedFile) {
-      setFile(selectedFile)
-      setSelectedAnalysis({
-        id: generateUUID(),
-        week: selectedWeek,
-        folder: selectedFolder,
-        source: 'file',
-        filename: selectedFile.name,
-        uploadedAt: new Date().toISOString(),
-        scraps: []
-      })
-      setScraps([])
+    applySelectedFile(e.target.files?.[0])
+  }
+
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      recordStreamRef.current = stream
+      const mediaRecorder = new MediaRecorder(stream)
+      recordChunksRef.current = []
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordChunksRef.current.push(e.data)
+      }
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordChunksRef.current, { type: 'audio/webm' })
+        const filename = `녹음_${selectedFolder}_${Date.now()}.webm`
+        applySelectedFile(new File([blob], filename, { type: 'audio/webm' }))
+        stream.getTracks().forEach((t) => t.stop())
+      }
+      mediaRecorder.start()
+      mediaRecorderRef.current = mediaRecorder
+      setRecordSeconds(0)
+      setIsRecording(true)
+    } catch (error) {
+      alert('마이크 접근 권한이 필요합니다.')
     }
   }
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+    setIsRecording(false)
+  }
+
+  useEffect(() => {
+    if (!isRecording) return
+    const timer = setInterval(() => setRecordSeconds((s) => s + 1), 1000)
+    return () => clearInterval(timer)
+  }, [isRecording])
+
+  useEffect(() => {
+    return () => {
+      if (recordStreamRef.current) {
+        recordStreamRef.current.getTracks().forEach((t) => t.stop())
+      }
+    }
+  }, [])
 
   const handleScrap = () => {
     if (!selectedAnalysis) return
@@ -488,7 +541,29 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
 
           {sourceMode === 'file' && (
             <>
-              <div className="bg-surface-alt rounded-xl p-4 mb-4">
+              <div className="bg-surface-alt rounded-xl p-4 mb-4 space-y-3">
+                {!isRecording ? (
+                  <button
+                    onClick={handleStartRecording}
+                    className="w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition"
+                  >
+                    <Mic size={15} />
+                    지금 바로 녹음하기
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStopRecording}
+                    className="w-full flex items-center justify-center gap-1.5 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2.5 rounded-xl text-sm transition animate-pulse"
+                  >
+                    <Square size={14} fill="currentColor" />
+                    녹음 중... {formatTime(recordSeconds)} (탭하여 종료)
+                  </button>
+                )}
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <div className="flex-1 h-px bg-white/10" />
+                  또는 파일 선택
+                  <div className="flex-1 h-px bg-white/10" />
+                </div>
                 <input
                   type="file"
                   accept="video/*,audio/*"

@@ -58,6 +58,7 @@ export default function QACommunity({ author, onAuthorChange, pendingDraft, onDr
   const [newTitle, setNewTitle] = useState('')
   const [newContent, setNewContent] = useState('')
   const [newTags, setNewTags] = useState('')
+  const [showContentField, setShowContentField] = useState(false)
 
   const loadQuestions = async () => {
     if (!supabaseConfigured) {
@@ -88,20 +89,21 @@ export default function QACommunity({ author, onAuthorChange, pendingDraft, onDr
     setNewTitle(pendingDraft.title || '')
     setNewContent(pendingDraft.content || '')
     setNewCategory('unexpected')
+    setShowContentField(Boolean(pendingDraft.content))
     setView('write')
     onDraftConsumed?.()
   }, [pendingDraft])
 
   const handleCreateQuestion = async () => {
-    if (!newTitle.trim() || !newContent.trim()) {
-      alert('제목과 내용을 입력해주세요.')
+    if (!newTitle.trim()) {
+      alert('제목을 입력해주세요.')
       return
     }
     const tags = newTags.split(',').map((t) => t.trim()).filter(Boolean)
 
     const { data, error } = await supabase
       .from('questions')
-      .insert({ category: newCategory, title: newTitle, content: newContent, tags, author })
+      .insert({ category: newCategory, title: newTitle.trim(), content: newContent.trim(), tags, author })
       .select('*, answers(*)')
       .single()
 
@@ -114,6 +116,7 @@ export default function QACommunity({ author, onAuthorChange, pendingDraft, onDr
     setNewContent('')
     setNewTags('')
     setNewCategory('unexpected')
+    setShowContentField(false)
     setView('list')
   }
 
@@ -449,15 +452,26 @@ export default function QACommunity({ author, onAuthorChange, pendingDraft, onDr
               placeholder="질문 제목"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateQuestion()}
+              autoFocus
               className="w-full p-3 border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
             />
-            <textarea
-              placeholder="질문 내용"
-              value={newContent}
-              onChange={(e) => setNewContent(e.target.value)}
-              className="w-full p-3 border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-              rows="6"
-            />
+            {showContentField ? (
+              <textarea
+                placeholder="질문 내용"
+                value={newContent}
+                onChange={(e) => setNewContent(e.target.value)}
+                className="w-full p-3 border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                rows="6"
+              />
+            ) : (
+              <button
+                onClick={() => setShowContentField(true)}
+                className="text-xs font-bold text-gray-500 hover:text-brand"
+              >
+                + 내용 추가 (선택)
+              </button>
+            )}
             <input
               type="text"
               placeholder="태그 (쉼표로 구분, 예: 시간, 환불, 조회수)"
@@ -507,7 +521,9 @@ export default function QACommunity({ author, onAuthorChange, pendingDraft, onDr
                 ))}
               </div>
             )}
-            <p className="text-gray-200 whitespace-pre-wrap">{selectedQuestion.content}</p>
+            {selectedQuestion.content && (
+              <p className="text-gray-200 whitespace-pre-wrap">{selectedQuestion.content}</p>
+            )}
           </div>
 
           <hr className="border-white/10" />
