@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import {
   MessageCircle, AlertTriangle, MessageSquare, Star, ThumbsUp, Mic,
-  PenSquare, ArrowLeft, Trash2
+  PenSquare, ArrowLeft, Trash2, Loader2, CloudOff
 } from 'lucide-react'
-import { generateUUID, formatDate } from '../utils/formatters'
-import { getQuestions, saveQuestion, updateQuestion, deleteQuestion } from '../utils/storage'
+import { formatDate } from '../utils/formatters'
+import { supabase, supabaseConfigured } from '../utils/supabase'
 import AnswerPracticeModal from '../components/AnswerPracticeModal'
 import ProfileModal from '../components/ProfileModal'
 
@@ -14,8 +14,36 @@ const CATEGORIES = [
   { id: 'general', label: '일반질문' },
 ]
 
+function mapAnswer(a) {
+  return {
+    id: a.id,
+    content: a.content,
+    author: a.author,
+    likes: a.likes,
+    isPinned: a.is_pinned,
+    createdAt: a.created_at,
+  }
+}
+
+function mapQuestion(q) {
+  return {
+    id: q.id,
+    category: q.category,
+    title: q.title,
+    content: q.content,
+    tags: q.tags || [],
+    author: q.author,
+    createdAt: q.created_at,
+    answers: (q.answers || [])
+      .map(mapAnswer)
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)),
+  }
+}
+
 export default function QACommunity({ author, onAuthorChange, pendingDraft, onDraftConsumed }) {
   const [questions, setQuestions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
   const [showProfileModal, setShowProfileModal] = useState(false)
 
   const [view, setView] = useState('list') // 'list' | 'write' | 'detail'
@@ -31,8 +59,28 @@ export default function QACommunity({ author, onAuthorChange, pendingDraft, onDr
   const [newContent, setNewContent] = useState('')
   const [newTags, setNewTags] = useState('')
 
+  const loadQuestions = async () => {
+    if (!supabaseConfigured) {
+      setLoading(false)
+      setLoadError('설정 없음')
+      return
+    }
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('questions')
+      .select('*, answers(*)')
+      .order('created_at', { ascending: false })
+    if (error) {
+      setLoadError(error.message)
+    } else {
+      setQuestions((data || []).map(mapQuestion))
+      setLoadError(null)
+    }
+    setLoading(false)
+  }
+
   useEffect(() => {
-    setQuestions(getQuestions())
+    loadQuestions()
   }, [])
 
   useEffect(() => {
@@ -44,27 +92,24 @@ export default function QACommunity({ author, onAuthorChange, pendingDraft, onDr
     onDraftConsumed?.()
   }, [pendingDraft])
 
-  const handleCreateQuestion = () => {
+  const handleCreateQuestion = async () => {
     if (!newTitle.trim() || !newContent.trim()) {
       alert('제목과 내용을 입력해주세요.')
       return
     }
-
     const tags = newTags.split(',').map((t) => t.trim()).filter(Boolean)
 
-    const question = {
-      id: generateUUID(),
-      category: newCategory,
-      title: newTitle,
-      content: newContent,
-      tags,
-      author,
-      createdAt: new Date().toISOString(),
-      answers: []
-    }
+    const { data, error } = await supabase
+      .from('questions')
+      .insert({ category: newCategory, title: newTitle, content: newContent, tags, author })
+      .select('*, answers(*)')
+      .single()
 
-    saveQuestion(question)
-    setQuestions([question, ...questions])
+    if (error) {
+      alert('등록에 실패했어요: ' + error.message)
+      return
+    }
+    setQuestions([mapQuestion(data), ...questions])
     setNewTitle('')
     setNewContent('')
     setNewTags('')
@@ -72,62 +117,70 @@ export default function QACommunity({ author, onAuthorChange, pendingDraft, onDr
     setView('list')
   }
 
-  const handleAddAnswer = () => {
+  const handleAddAnswer = async () => {
     if (!answerContent.trim() || !selectedQuestion) return
 
-    const answer = {
-      id: generateUUID(),
-      content: answerContent,
-      author,
-      likes: 0,
-      createdAt: new Date().toISOString(),
-      isPinned: false
+    const { data, error } = await supabase
+      .from('answers')
+      .insert({ question_id: selectedQuestion.id, content: answerContent, author })
+      .select()
+      .single()
+
+    if (error) {
+      alert('답변 등록에 실패했어요: ' + error.message)
+      return
     }
 
-    const updatedQuestion = {
-      ...selectedQuestion,
-      answers: [...(selectedQuestion.answers || []), answer]
-    }
-
-    updateQuestion(selectedQuestion.id, updatedQuestion)
+    const updatedQuestion = { ...selectedQuestion, answers: [...selectedQuestion.answers, mapAnswer(data)] }
     setSelectedQuestion(updatedQuestion)
     setQuestions(questions.map(q => q.id === selectedQuestion.id ? updatedQuestion : q))
     setAnswerContent('')
   }
 
-  const handleLikeAnswer = (answerId) => {
+  const handleLikeAnswer = async (answerId) => {
     if (!selectedQuestion) return
+    const target = selectedQuestion.answers.find(a => a.id === answerId)
+    if (!target) return
+    const newLikes = target.likes + 1
+
+    const { error } = await supabase.from('answers').update({ likes: newLikes }).eq('id', answerId)
+    if (error) return
+
     const updatedQuestion = {
       ...selectedQuestion,
-      answers: selectedQuestion.answers.map(a =>
-        a.id === answerId ? { ...a, likes: a.likes + 1 } : a
-      )
+      answers: selectedQuestion.answers.map(a => a.id === answerId ? { ...a, likes: newLikes } : a)
     }
-    updateQuestion(selectedQuestion.id, updatedQuestion)
     setSelectedQuestion(updatedQuestion)
     setQuestions(questions.map(q => q.id === selectedQuestion.id ? updatedQuestion : q))
   }
 
-  const handlePinAnswer = (answerId) => {
+  const handlePinAnswer = async (answerId) => {
     if (!selectedQuestion) return
+    const target = selectedQuestion.answers.find(a => a.id === answerId)
+    if (!target) return
+    const nextPinned = !target.isPinned
+
+    await supabase.from('answers').update({ is_pinned: false }).eq('question_id', selectedQuestion.id)
+    await supabase.from('answers').update({ is_pinned: nextPinned }).eq('id', answerId)
+
     const updatedQuestion = {
       ...selectedQuestion,
-      answers: selectedQuestion.answers.map(a =>
-        a.id === answerId ? { ...a, isPinned: !a.isPinned } : { ...a, isPinned: false }
-      )
+      answers: selectedQuestion.answers.map(a => ({ ...a, isPinned: a.id === answerId ? nextPinned : false }))
     }
-    updateQuestion(selectedQuestion.id, updatedQuestion)
     setSelectedQuestion(updatedQuestion)
     setQuestions(questions.map(q => q.id === selectedQuestion.id ? updatedQuestion : q))
   }
 
-  const handleDeleteQuestion = (id) => {
-    if (confirm('정말로 삭제하시겠습니까?')) {
-      deleteQuestion(id)
-      setQuestions(questions.filter(q => q.id !== id))
-      setSelectedQuestion(null)
-      setView('list')
+  const handleDeleteQuestion = async (id) => {
+    if (!confirm('정말로 삭제하시겠습니까?')) return
+    const { error } = await supabase.from('questions').delete().eq('id', id)
+    if (error) {
+      alert('삭제에 실패했어요: ' + error.message)
+      return
     }
+    setQuestions(questions.filter(q => q.id !== id))
+    setSelectedQuestion(null)
+    setView('list')
   }
 
   const getBestAnswerOf = (question) => {
@@ -190,6 +243,35 @@ export default function QACommunity({ author, onAuthorChange, pendingDraft, onDr
         {isUnexpected ? <AlertTriangle size={11} /> : <MessageSquare size={11} />}
         {isUnexpected ? '돌발질문' : '일반질문'}
       </span>
+    )
+  }
+
+  if (!supabaseConfigured) {
+    return (
+      <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-8 text-center space-y-2">
+        <CloudOff size={28} className="mx-auto text-gray-500" />
+        <h2 className="text-lg font-extrabold">Q&A 커뮤니티 연결 안 됨</h2>
+        <p className="text-sm text-gray-500">.env에 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY를 설정해주세요.</p>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-gray-500">
+        <Loader2 size={24} className="animate-spin" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-8 text-center space-y-2">
+        <CloudOff size={28} className="mx-auto text-gray-500" />
+        <h2 className="text-lg font-extrabold">불러오기에 실패했어요</h2>
+        <p className="text-sm text-gray-500">{loadError}</p>
+        <button onClick={loadQuestions} className="text-sm font-bold text-brand hover:underline">다시 시도</button>
+      </div>
     )
   }
 
@@ -277,7 +359,7 @@ export default function QACommunity({ author, onAuthorChange, pendingDraft, onDr
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="text-sm p-1.5 border border-white/10 rounded-lg"
+                className="text-sm p-1.5 border border-white/10 rounded-lg bg-surface"
               >
                 <option value="newest">최신순</option>
                 <option value="popular">인기순</option>

@@ -3,7 +3,7 @@ import { Play, Pause } from 'lucide-react'
 import { formatTime } from '../utils/formatters'
 import WaveformScrubber from './WaveformScrubber'
 
-export default function VideoPlayer({ file, videoRef, currentTime, onTimeUpdate, scraps = [] }) {
+export default function VideoPlayer({ file, videoRef, currentTime, onTimeUpdate, scraps = [], onScrapPlay }) {
   const [duration, setDuration] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [fileURL, setFileURL] = useState(null)
@@ -42,6 +42,10 @@ export default function VideoPlayer({ file, videoRef, currentTime, onTimeUpdate,
   }
 
   const handleScrapPlay = (scrap) => {
+    if (onScrapPlay) {
+      onScrapPlay(scrap)
+      return
+    }
     handleSeek(scrap.timestamp)
     videoRef.current?.play()
   }

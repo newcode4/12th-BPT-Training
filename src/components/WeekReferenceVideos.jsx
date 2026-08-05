@@ -1,18 +1,21 @@
 import { useState, useEffect, useRef } from 'react'
-import { Bookmark, Trash2, PlayCircle } from 'lucide-react'
-import { parseHMSToSeconds, formatTime, generateUUID, formatDate } from '../utils/formatters'
-import { getRefScraps, saveRefScrap, deleteRefScrap } from '../utils/storage'
-import { loadYouTubeAPI } from '../utils/youtube'
+import { Bookmark, Trash2, PlayCircle, Plus, ShieldCheck } from 'lucide-react'
+import { parseHMSToSeconds, hmsToSeconds, formatTime, generateUUID } from '../utils/formatters'
+import { getRefScraps, saveRefScrap, deleteRefScrap, getAdminReferenceVideos, saveAdminReferenceVideo, deleteAdminReferenceVideo } from '../utils/storage'
+import { loadYouTubeAPI, parseYouTubeUrl } from '../utils/youtube'
+import { isAdminMode } from '../utils/admin'
+import TimeHMSInput from './TimeHMSInput'
 
-// 각 주차 예시 시뮬레이션 영상 (매니저/과장님 실전 영상)
+// 각 주차 예시 시뮬레이션 영상 (주호 팀장님 실전 영상)
 const REFERENCE_VIDEOS = {
-  '1': [{ presenter: '이아름 매니저', videoId: 'WsoB0Gy-IXM', startLabel: '4:12:30', endLabel: '5:02:35' }],
-  '2': [{ presenter: '이아름 매니저', videoId: '5HC6s043Frg', startLabel: '6:03:00', endLabel: '6:58:03' }],
-  '3': [{ presenter: '이아름 매니저', videoId: 'pSVmTM7NYUg', startLabel: '2:02:00', endLabel: '2:49:30' }],
-  '4': [{ presenter: '이아름 매니저', videoId: 'WfmLlaUEvaQ', startLabel: '5:32:00', endLabel: '6:21:40' }],
+  '0': [{ presenter: '주호 팀장님', videoId: 'r7GNZoB_uM4', startLabel: '5:23:49' }],
+  '1': [{ presenter: '주호 팀장님', videoId: '-lKqaN2CRkM', startLabel: '4:18:42' }],
+  '2': [{ presenter: '주호 팀장님', videoId: 'fnhkwUUw1IY', startLabel: '6:26:29' }],
+  '3': [{ presenter: '주호 팀장님', videoId: 'rVScZPpUAh4', startLabel: '4:58:14' }],
+  '4': [{ presenter: '주호 팀장님', videoId: 'fGxzSRnk27E', startLabel: '5:8:20' }],
 }
 
-function ReferenceVideoCard({ video }) {
+function ReferenceVideoCard({ video, onDelete }) {
   const startSec = parseHMSToSeconds(video.startLabel)
   const mountRef = useRef(null)
   const playerRef = useRef(null)
@@ -72,7 +75,14 @@ function ReferenceVideoCard({ video }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-bold text-gray-200">{video.presenter}</span>
-        <span className="text-xs text-gray-500">시간 {video.startLabel} ~ {video.endLabel}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">{video.startLabel} 부터 시작</span>
+          {onDelete && (
+            <button onClick={() => onDelete(video.id)} className="text-gray-600 hover:text-red-500">
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="aspect-video rounded-xl overflow-hidden bg-black">
@@ -139,24 +149,108 @@ function ReferenceVideoCard({ video }) {
   )
 }
 
-export default function WeekReferenceVideos({ week }) {
-  const videos = REFERENCE_VIDEOS[week] || []
+function AdminAddVideoForm({ week, onAdded }) {
+  const [presenter, setPresenter] = useState('')
+  const [url, setUrl] = useState('')
+  const [hms, setHms] = useState({ hours: 0, minutes: 0, seconds: 0 })
 
-  if (videos.length === 0) {
-    return (
-      <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
-        <h3 className="text-lg font-extrabold mb-2">예시 시뮬레이션 영상</h3>
-        <p className="text-sm text-gray-500">이번 주차는 아직 등록된 예시 영상이 없어요.</p>
-      </div>
-    )
+  const handleAdd = () => {
+    const videoId = parseYouTubeUrl(url.trim())
+    if (!videoId || !presenter.trim()) {
+      alert('발표자 이름과 올바른 유튜브 링크를 입력해주세요.')
+      return
+    }
+    const startSeconds = hmsToSeconds(hms.hours, hms.minutes, hms.seconds)
+    const video = {
+      id: generateUUID(),
+      week,
+      presenter: presenter.trim(),
+      videoId,
+      startLabel: `${hms.hours}:${String(hms.minutes).padStart(2, '0')}:${String(hms.seconds).padStart(2, '0')}`,
+      startSeconds,
+    }
+    saveAdminReferenceVideo(video)
+    onAdded(video)
+    setPresenter('')
+    setUrl('')
+    setHms({ hours: 0, minutes: 0, seconds: 0 })
   }
+
+  return (
+    <div className="bg-surface-alt rounded-xl p-4 space-y-2 border border-brand/20">
+      <p className="flex items-center gap-1.5 text-xs font-bold text-brand">
+        <ShieldCheck size={13} />
+        관리자 · 예시 영상 추가
+      </p>
+      <input
+        type="text"
+        value={presenter}
+        onChange={(e) => setPresenter(e.target.value)}
+        placeholder="발표자 이름 (예: 이아름 매니저)"
+        className="w-full p-2.5 border border-white/10 rounded-xl text-sm bg-surface focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+      />
+      <input
+        type="text"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="https://youtu.be/xxxxxxxxxxx"
+        className="w-full p-2.5 border border-white/10 rounded-xl text-sm bg-surface focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+      />
+      <TimeHMSInput
+        hours={hms.hours}
+        minutes={hms.minutes}
+        seconds={hms.seconds}
+        onChange={setHms}
+        label="시작 시간"
+      />
+      <button
+        onClick={handleAdd}
+        className="w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition"
+      >
+        <Plus size={14} />
+        추가
+      </button>
+    </div>
+  )
+}
+
+export default function WeekReferenceVideos({ week }) {
+  const [adminVideos, setAdminVideos] = useState(() => getAdminReferenceVideos(week))
+  const admin = isAdminMode()
+
+  useEffect(() => {
+    setAdminVideos(getAdminReferenceVideos(week))
+  }, [week])
+
+  const handleDeleteAdminVideo = (id) => {
+    deleteAdminReferenceVideo(id)
+    setAdminVideos(adminVideos.filter(v => v.id !== id))
+  }
+
+  const videos = [...(REFERENCE_VIDEOS[week] || []), ...adminVideos]
 
   return (
     <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 space-y-5">
       <h3 className="text-lg font-extrabold">예시 시뮬레이션 영상</h3>
+
+      {videos.length === 0 && (
+        <p className="text-sm text-gray-500">이번 주차는 아직 등록된 예시 영상이 없어요.</p>
+      )}
+
       {videos.map((v) => (
-        <ReferenceVideoCard key={v.videoId} video={v} />
+        <ReferenceVideoCard
+          key={v.id || v.videoId}
+          video={v}
+          onDelete={v.id ? handleDeleteAdminVideo : null}
+        />
       ))}
+
+      {admin && (
+        <AdminAddVideoForm
+          week={week}
+          onAdded={(video) => setAdminVideos([...adminVideos, video])}
+        />
+      )}
     </div>
   )
 }

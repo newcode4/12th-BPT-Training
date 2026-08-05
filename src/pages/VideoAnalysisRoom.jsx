@@ -1,20 +1,24 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Video, Bookmark, RotateCcw, Save, Archive, Download, Trash2,
-  ChevronDown, Sparkles, ArrowUpDown, Upload, MonitorPlay, Folder
+  ChevronDown, Sparkles, ArrowUpDown, Upload, MonitorPlay, Folder,
+  ShieldCheck, Plus, X
 } from 'lucide-react'
 import { generateUUID, formatTime, downloadJSON, hmsToSeconds } from '../utils/formatters'
 import {
   saveAnalysis, getAnalyses, updateAnalysis, deleteAnalysis,
-  getInsights
+  getInsights, getAdminFolders, saveAdminFolder, deleteAdminFolder
 } from '../utils/storage'
 import { parseYouTubeUrl, parseYouTubeStartSeconds } from '../utils/youtube'
+import { saveFileBlob, getFileBlob, deleteFileBlob } from '../utils/fileStore'
+import { isAdminMode } from '../utils/admin'
 import TimeHMSInput, { applySecondsToHMS } from '../components/TimeHMSInput'
 import { WEEK_CURRICULUM } from '../utils/curriculum'
 import VideoPlayer from '../components/VideoPlayer'
 import ScrapEditor from '../components/ScrapEditor'
 import MyYoutubeAnalysis from '../components/MyYoutubeAnalysis'
 import WeekReferenceVideos from '../components/WeekReferenceVideos'
+import AllReplaysArchive from '../components/AllReplaysArchive'
 import WeekInsights from '../components/WeekInsights'
 import WeekFeedback from '../components/WeekFeedback'
 import { WEEKS } from '../utils/weeks'
@@ -28,6 +32,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
 
   const [file, setFile] = useState(null)
   const [currentTime, setCurrentTime] = useState(0)
+  const [loopRange, setLoopRange] = useState(null)
   const [analyses, setAnalyses] = useState([])
   const [selectedAnalysis, setSelectedAnalysis] = useState(null)
   const [scraps, setScraps] = useState([])
@@ -39,6 +44,9 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
   const [insights, setInsights] = useState([])
   const [notesOpen, setNotesOpen] = useState(false)
   const [sortOrder, setSortOrder] = useState('newest') // 'newest' | 'oldest'
+  const [adminFolders, setAdminFolders] = useState(() => getAdminFolders('0'))
+  const [newFolderInput, setNewFolderInput] = useState('')
+  const admin = isAdminMode()
   const author = localStorage.getItem('qa-author') || '익명'
   const videoRef = useRef(null)
   const scrapListRef = useRef(null)
@@ -48,6 +56,10 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
     setAnalyses(getAnalyses())
     setInsights(getInsights())
   }, [])
+
+  useEffect(() => {
+    setAdminFolders(getAdminFolders(selectedWeek))
+  }, [selectedWeek])
 
   useEffect(() => {
     setSelectedFolder(FULL_RECORDING_FOLDER)
@@ -72,7 +84,21 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
     }
   }, [scraps])
 
-  const folders = [FULL_RECORDING_FOLDER, ...(WEEK_CURRICULUM[selectedWeek] || [])]
+  const folders = [FULL_RECORDING_FOLDER, ...(WEEK_CURRICULUM[selectedWeek] || []), ...adminFolders]
+
+  const handleAddFolder = () => {
+    const name = newFolderInput.trim()
+    if (!name) return
+    saveAdminFolder(selectedWeek, name)
+    setAdminFolders([...adminFolders, name])
+    setNewFolderInput('')
+  }
+
+  const handleDeleteFolder = (name) => {
+    deleteAdminFolder(selectedWeek, name)
+    setAdminFolders(adminFolders.filter(f => f !== name))
+    if (selectedFolder === name) setSelectedFolder(FULL_RECORDING_FOLDER)
+  }
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files?.[0]
@@ -112,6 +138,15 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
 
   const deleteScrap = (id) => {
     setScraps(scraps.filter(s => s.id !== id))
+    setLoopRange((lr) => (lr && scraps.find(s => s.id === id)?.timestamp === lr.start ? null : lr))
+  }
+
+  const handleSetScrapEnd = (scrap) => {
+    if (currentTime <= scrap.timestamp) {
+      alert('구간 끝은 시작 지점보다 뒤여야 해요. 원하는 끝 지점까지 재생한 뒤 다시 눌러주세요.')
+      return
+    }
+    setScraps(scraps.map(s => s.id === scrap.id ? { ...s, endTime: currentTime } : s))
   }
 
   const handlePlayScrap = (scrap) => {
@@ -120,16 +155,43 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
       videoRef.current.play()
     }
     setCurrentTime(scrap.timestamp)
+    if (scrap.endTime != null && scrap.endTime > scrap.timestamp) {
+      setLoopRange({ start: scrap.timestamp, end: scrap.endTime })
+    } else {
+      setLoopRange(null)
+    }
   }
 
-  const handleSaveAnalysis = () => {
+  const handleTimeUpdate = (t) => {
+    setCurrentTime(t)
+    if (loopRange && t >= loopRange.end && videoRef.current) {
+      videoRef.current.currentTime = loopRange.start
+    }
+  }
+
+  const handleSaveAnalysis = async () => {
     if (!selectedAnalysis || scraps.length === 0) {
       alert('스크랩이 없습니다.')
       return
     }
     const analysis = { ...selectedAnalysis, scraps }
-    saveAnalysis(analysis)
-    setAnalyses([...analyses, analysis])
+    const isExisting = analyses.some(a => a.id === analysis.id)
+
+    if (file && file.size > 0) {
+      try {
+        await saveFileBlob(analysis.id, file)
+      } catch (e) {
+        console.error('파일 저장 실패', e)
+      }
+    }
+
+    if (isExisting) {
+      updateAnalysis(analysis.id, analysis)
+      setAnalyses(analyses.map(a => a.id === analysis.id ? analysis : a))
+    } else {
+      saveAnalysis(analysis)
+      setAnalyses([...analyses, analysis])
+    }
     alert('분석이 저장되었습니다.')
     handleNewAnalysis()
   }
@@ -139,6 +201,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
     setSelectedAnalysis(null)
     setScraps([])
     setCurrentTime(0)
+    setLoopRange(null)
   }
 
   const handleDownloadAnalysis = (analysis) => {
@@ -148,12 +211,13 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
   const handleDeleteAnalysis = (id) => {
     if (confirm('정말로 삭제하시겠습니까?')) {
       deleteAnalysis(id)
+      deleteFileBlob(id).catch(() => {})
       setAnalyses(analyses.filter(a => a.id !== id))
       if (ytActiveAnalysis?.id === id) setYtActiveAnalysis(null)
     }
   }
 
-  const handleLoadAnalysis = (analysis) => {
+  const handleLoadAnalysis = async (analysis) => {
     setSelectedWeek(analysis.week || '0')
     setSelectedFolder(analysis.folder || FULL_RECORDING_FOLDER)
     if (analysis.source === 'youtube') {
@@ -163,7 +227,13 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
       setSourceMode('file')
       setSelectedAnalysis(analysis)
       setScraps(analysis.scraps)
-      setFile(new File([], analysis.filename))
+      const blob = await getFileBlob(analysis.id)
+      if (blob) {
+        setFile(new File([blob], analysis.filename, { type: blob.type || 'video/mp4' }))
+      } else {
+        alert('원본 파일을 찾을 수 없어요. 스크랩 메모는 볼 수 있지만 재생하려면 같은 파일을 다시 업로드해주세요.')
+        setFile(new File([], analysis.filename))
+      }
     }
   }
 
@@ -254,7 +324,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
             }`
       }
     >
-      {w.label} <span className="opacity-70">({countByWeek(w.id)})</span>
+      {w.label} · {w.title} <span className="opacity-70">({countByWeek(w.id)})</span>
     </button>
   )
 
@@ -278,7 +348,11 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                     isOpen ? 'bg-brand text-white' : 'text-gray-400 hover:bg-surface-alt'
                   }`}
                 >
-                  {w.label} <span className="opacity-70">({countByWeek(w.id)})</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>{w.label}</span>
+                    <span className="opacity-70 text-xs">({countByWeek(w.id)})</span>
+                  </div>
+                  <div className={`text-[11px] font-semibold ${isOpen ? 'text-white/80' : 'text-gray-500'}`}>{w.title}</div>
                 </button>
 
                 {isOpen && (
@@ -341,8 +415,48 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
           </div>
         </div>
 
+        {/* 관리자: 세부 폴더(카테고리) 추가/삭제 */}
+        {admin && (
+          <div className="bg-surface rounded-2xl shadow-card border border-brand/20 p-4 space-y-3">
+            <p className="flex items-center gap-1.5 text-xs font-bold text-brand">
+              <ShieldCheck size={13} />
+              관리자 · {weekLabel} 세부 폴더 관리
+            </p>
+            {adminFolders.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {adminFolders.map((f) => (
+                  <span key={f} className="inline-flex items-center gap-1 text-xs font-bold bg-surface-alt text-gray-300 px-2.5 py-1 rounded-full">
+                    {f}
+                    <button onClick={() => handleDeleteFolder(f)} className="text-gray-500 hover:text-red-500">
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newFolderInput}
+                onChange={(e) => setNewFolderInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddFolder()}
+                placeholder="새 폴더 이름"
+                className="flex-1 p-2.5 border border-white/10 rounded-xl text-sm bg-surface-alt focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+              />
+              <button
+                onClick={handleAddFolder}
+                className="flex items-center gap-1 bg-brand hover:bg-brand-dark text-white font-bold px-4 rounded-xl text-sm transition"
+              >
+                <Plus size={14} />
+                추가
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 예시 시뮬레이션 영상 (유튜브 스크랩) */}
         <WeekReferenceVideos week={selectedWeek} />
+        <AllReplaysArchive />
 
         {/* 내 시뮬레이션 업로드 & 스크랩 */}
         <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
@@ -389,9 +503,24 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                     file={file}
                     videoRef={videoRef}
                     currentTime={currentTime}
-                    onTimeUpdate={setCurrentTime}
+                    onTimeUpdate={handleTimeUpdate}
                     scraps={scraps}
+                    onScrapPlay={handlePlayScrap}
                   />
+
+                  {loopRange && (
+                    <div className="flex items-center justify-between gap-2 bg-brand-light px-3 py-2 rounded-xl">
+                      <span className="text-xs font-bold text-brand">
+                        🔁 {formatTime(loopRange.start)} ~ {formatTime(loopRange.end)} 구간 반복 중
+                      </span>
+                      <button
+                        onClick={() => setLoopRange(null)}
+                        className="text-xs font-bold text-brand hover:text-white bg-surface hover:bg-brand px-2 py-1 rounded-lg transition"
+                      >
+                        반복 중지
+                      </button>
+                    </div>
+                  )}
 
                   <div className="flex gap-2">
                     <button
@@ -426,6 +555,7 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
                               onDelete={deleteScrap}
                               onAskQuestion={handleAskAboutScrap}
                               onPlay={handlePlayScrap}
+                              onSetEnd={handleSetScrapEnd}
                             />
                           </div>
                         ))}

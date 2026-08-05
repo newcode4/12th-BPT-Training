@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Mic, Shuffle, AlertTriangle, Globe, Lock, Star, FolderOpen, Trash2 } from 'lucide-react'
+import { Mic, Shuffle, AlertTriangle, Globe, Lock, Star, FolderOpen, Trash2, Tag } from 'lucide-react'
 import { generateUUID, formatDate, getRandomItem } from '../utils/formatters'
 import { getEmergencyItems, saveEmergencyItem, updateEmergencyItem, deleteEmergencyItem } from '../utils/storage'
 import { WEEKS } from '../utils/weeks'
@@ -11,6 +11,8 @@ export default function PracticeRoom() {
   const [folderOnly, setFolderOnly] = useState(false)
   const [situation, setSituation] = useState('')
   const [myAnswer, setMyAnswer] = useState('')
+  const [category, setCategory] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('전체')
   const [visibility, setVisibility] = useState('shared')
   const [randomItem, setRandomItem] = useState(null)
   const [practiceItem, setPracticeItem] = useState(null)
@@ -20,8 +22,14 @@ export default function PracticeRoom() {
     setItems(getEmergencyItems())
   }, [])
 
+  useEffect(() => {
+    setCategoryFilter('전체')
+  }, [selectedWeek])
+
   const weekItems = items.filter(i => i.week === selectedWeek)
-  const visibleItems = folderOnly ? weekItems.filter(i => i.isCollected) : weekItems
+  const weekCategories = ['전체', ...Array.from(new Set(weekItems.map(i => i.category).filter(Boolean)))]
+  const categoryFiltered = categoryFilter === '전체' ? weekItems : weekItems.filter(i => i.category === categoryFilter)
+  const visibleItems = folderOnly ? categoryFiltered.filter(i => i.isCollected) : categoryFiltered
 
   const handleAdd = () => {
     if (!situation.trim() || !myAnswer.trim()) {
@@ -34,6 +42,7 @@ export default function PracticeRoom() {
       author,
       situation: situation.trim(),
       myAnswer: myAnswer.trim(),
+      category: category.trim() || '기타',
       visibility,
       isCollected: false,
       createdAt: new Date().toISOString()
@@ -42,6 +51,7 @@ export default function PracticeRoom() {
     setItems([item, ...items])
     setSituation('')
     setMyAnswer('')
+    setCategory('')
     setVisibility('shared')
   }
 
@@ -94,7 +104,7 @@ export default function PracticeRoom() {
                   : 'bg-surface-alt text-gray-400 hover:bg-white/10'
               }`}
             >
-              {w.label} ({items.filter(i => i.week === w.id).length})
+              {w.label} · {w.title} ({items.filter(i => i.week === w.id).length})
             </button>
           ))}
         </div>
@@ -147,6 +157,13 @@ export default function PracticeRoom() {
           className="w-full p-3 border border-white/10 rounded-xl text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
           rows="3"
         />
+        <input
+          type="text"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          placeholder="카테고리 (예: 환불, 가격문의, 시간관리 - 비워두면 기타)"
+          className="w-full p-3 border border-white/10 rounded-xl text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+        />
         <div className="flex gap-2">
           <button
             onClick={() => setVisibility('shared')}
@@ -192,10 +209,31 @@ export default function PracticeRoom() {
           </button>
         </div>
 
+        {weekCategories.length > 1 && (
+          <div className="flex flex-wrap gap-1.5">
+            {weekCategories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setCategoryFilter(cat)}
+                className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full transition ${
+                  categoryFilter === cat ? 'bg-brand text-white' : 'bg-surface-alt text-gray-400 hover:bg-white/10'
+                }`}
+              >
+                <Tag size={10} />
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="space-y-2">
           {visibleItems.map((item) => (
             <div key={item.id} className="p-4 bg-surface-alt rounded-2xl">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-white/10 text-gray-300">
+                  <Tag size={10} />
+                  {item.category || '기타'}
+                </span>
                 <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${
                   item.visibility === 'private' ? 'bg-white/15 text-gray-300' : 'bg-brand-light text-brand'
                 }`}>

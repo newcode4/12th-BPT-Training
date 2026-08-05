@@ -4,7 +4,7 @@ export function getStorageData() {
   const data = localStorage.getItem(STORAGE_KEY)
   return data
     ? JSON.parse(data)
-    : { analyses: [], questions: [], recordings: [], emergencyItems: [], insights: [], weekFeedback: {}, refScraps: [] }
+    : { analyses: [], recordings: [], emergencyItems: [], insights: [], feedbackEntries: [], refScraps: [], adminReferenceVideos: [], adminFolders: {} }
 }
 
 export function saveStorageData(data) {
@@ -35,33 +35,6 @@ export function updateAnalysis(id, analysis) {
 export function deleteAnalysis(id) {
   const data = getStorageData()
   data.analyses = data.analyses.filter(a => a.id !== id)
-  saveStorageData(data)
-}
-
-export function getQuestions() {
-  const data = getStorageData()
-  return data.questions || []
-}
-
-export function saveQuestion(question) {
-  const data = getStorageData()
-  data.questions = data.questions || []
-  data.questions.push(question)
-  saveStorageData(data)
-}
-
-export function updateQuestion(id, question) {
-  const data = getStorageData()
-  const index = data.questions.findIndex(q => q.id === id)
-  if (index !== -1) {
-    data.questions[index] = question
-    saveStorageData(data)
-  }
-}
-
-export function deleteQuestion(id) {
-  const data = getStorageData()
-  data.questions = data.questions.filter(q => q.id !== id)
   saveStorageData(data)
 }
 
@@ -141,16 +114,64 @@ export function deleteInsight(id) {
   saveStorageData(data)
 }
 
-// 주차별 나의 피드백
-export function getWeekFeedback(week) {
+// 주차별 나의 피드백 (자유롭게 여러 개 기록 - 스크랩과 별개)
+export function getFeedbackEntries(week) {
   const data = getStorageData()
-  return (data.weekFeedback || {})[week] || ''
+  return (data.feedbackEntries || []).filter(f => f.week === week)
 }
 
-export function saveWeekFeedback(week, text) {
+export function saveFeedbackEntry(entry) {
   const data = getStorageData()
-  data.weekFeedback = data.weekFeedback || {}
-  data.weekFeedback[week] = text
+  data.feedbackEntries = data.feedbackEntries || []
+  data.feedbackEntries.push(entry)
+  saveStorageData(data)
+}
+
+export function deleteFeedbackEntry(id) {
+  const data = getStorageData()
+  data.feedbackEntries = (data.feedbackEntries || []).filter(f => f.id !== id)
+  saveStorageData(data)
+}
+
+// 관리자 - 주차별 예시 영상 추가/삭제 (기본 예시에 얹어짐)
+export function getAdminReferenceVideos(week) {
+  const data = getStorageData()
+  return (data.adminReferenceVideos || []).filter(v => v.week === week)
+}
+
+export function saveAdminReferenceVideo(video) {
+  const data = getStorageData()
+  data.adminReferenceVideos = data.adminReferenceVideos || []
+  data.adminReferenceVideos.push(video)
+  saveStorageData(data)
+}
+
+export function deleteAdminReferenceVideo(id) {
+  const data = getStorageData()
+  data.adminReferenceVideos = (data.adminReferenceVideos || []).filter(v => v.id !== id)
+  saveStorageData(data)
+}
+
+// 관리자 - 주차별 세부 폴더(카테고리) 추가/삭제
+export function getAdminFolders(week) {
+  const data = getStorageData()
+  return (data.adminFolders || {})[week] || []
+}
+
+export function saveAdminFolder(week, folderName) {
+  const data = getStorageData()
+  data.adminFolders = data.adminFolders || {}
+  data.adminFolders[week] = data.adminFolders[week] || []
+  if (!data.adminFolders[week].includes(folderName)) {
+    data.adminFolders[week].push(folderName)
+  }
+  saveStorageData(data)
+}
+
+export function deleteAdminFolder(week, folderName) {
+  const data = getStorageData()
+  data.adminFolders = data.adminFolders || {}
+  data.adminFolders[week] = (data.adminFolders[week] || []).filter(f => f !== folderName)
   saveStorageData(data)
 }
 
