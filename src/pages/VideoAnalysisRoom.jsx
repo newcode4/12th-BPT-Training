@@ -54,9 +54,10 @@ export default function VideoAnalysisRoom({ onAskQuestion }) {
   const prevWeekRef = useRef(selectedWeek)
 
   useEffect(() => {
-    listRecords('analysis').then(setAnalyses).catch((e) => console.error('분석 불러오기 실패', e))
+    // 시뮬레이션 분석(녹음/유튜브 링크)은 개인 기록이라 본인 것만 불러온다
+    listRecords('analysis', { author }).then(setAnalyses).catch((e) => console.error('분석 불러오기 실패', e))
     listRecords('insight').then(setInsights).catch((e) => console.error('인사이트 불러오기 실패', e))
-  }, [])
+  }, [author])
 
   useEffect(() => {
     let cancelled = false

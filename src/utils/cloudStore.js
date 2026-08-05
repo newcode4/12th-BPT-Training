@@ -20,7 +20,9 @@ function isMissingTable(error) {
 
 // ---- 기존 버전(로컬 전용)에서 쓰던 데이터를 새 구조로 한 번만 옮긴다 ----
 const LEGACY_READERS = {
-  analysis: (d) => d.analyses || [],
+  // 개인 기록(analysis)은 예전엔 author를 안 저장했다 — 이 기기의 로그인 사용자로 채워둔다.
+  // 못 채우면(로그아웃 상태) author 없는 채로 남는데, 그건 목록 필터에서 아무에게도 안 보인다.
+  analysis: (d) => (d.analyses || []).map(a => ({ ...a, author: a.author || legacyAuthor() })),
   ref_scrap: (d) => d.refScraps || [],
   admin_video: (d) => d.adminReferenceVideos || [],
   insight: (d) => d.insights || [],
