@@ -1,19 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, PlayCircle, ShieldCheck, Plus, Trash2, FolderPlus } from 'lucide-react'
+import { ChevronDown, PlayCircle, ShieldCheck, Plus, Trash2, FolderPlus, Shuffle } from 'lucide-react'
 import { loadYouTubeAPI, parseYouTubeUrl } from '../utils/youtube'
 import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 import { isAdminMode } from '../utils/admin'
 import { generateUUID } from '../utils/formatters'
-
-// 회차 날짜(YYMMDD)를 주차로 매핑한다. 정규 커리큘럼 시작일 기준.
-function dateToWeek(yymmdd) {
-  const d = Number(yymmdd)
-  if (d < 260723) return '0'
-  if (d < 260727) return '1'
-  if (d < 260729) return '2'
-  if (d < 260803) return '3'
-  return '4'
-}
 
 const WEEK_FILTERS = [
   { id: 'all', label: '전체보기' },
@@ -21,34 +11,41 @@ const WEEK_FILTERS = [
   { id: '1', label: '1주차' },
   { id: '2', label: '2주차' },
   { id: '3', label: '3주차' },
-  { id: '0-3', label: '0~3주차' },
+  { id: '0-3', label: '0~3주차 랜덤' },
   { id: '4', label: '4주차' },
-  { id: '0-4', label: '0~4주차' },
+  { id: '0-4', label: '0~4주차 랜덤' },
 ]
+// 관리자가 회차를 추가할 때 고를 수 있는 목록 (전체보기는 제외)
+const ADMIN_WEEK_OPTIONS = WEEK_FILTERS.filter((f) => f.id !== 'all')
 
-function matchesWeekFilter(filterId, week) {
-  if (filterId === 'all') return true
-  if (filterId.includes('-')) {
-    const [lo, hi] = filterId.split('-').map(Number)
-    return Number(week) >= lo && Number(week) <= hi
-  }
-  return week === filterId
+function isRandomFilter(filterId) {
+  return filterId === '0-3' || filterId === '0-4'
 }
 
-// 전체 라이브 다시보기 (날짜순 원본 아카이브) - YYMMDD, videoId
+// 회차의 week는 관리자가 명시적으로 지정한 값('0'~'4' 또는 '0-3'/'0-4')이다.
+// 필터 [lo,hi] 범위 안에 회차의 범위가 완전히 포함될 때만 그 필터에 노출한다.
+// 예) week='0-3'인 회차는 '0~3주차 랜덤'/'전체보기'에는 보이지만 단일 '3주차'에는 안 보인다.
+function matchesWeekFilter(filterId, week) {
+  if (filterId === 'all') return true
+  const [lo, hi] = filterId.includes('-') ? filterId.split('-').map(Number) : [Number(filterId), Number(filterId)]
+  const [elo, ehi] = String(week).includes('-') ? String(week).split('-').map(Number) : [Number(week), Number(week)]
+  return elo >= lo && ehi <= hi
+}
+
+// 전체 라이브 다시보기 (날짜순 원본 아카이브) - YYMMDD, videoId, week(필터 소속)
 // 관리자가 추가하는 회차는 서버(records, kind: replay)에 쌓인다
 const CURATED_REPLAYS = [
-  { date: '260804', videoId: 'RIBFaQZL7no' },
-  { date: '260803', videoId: 'fGxzSRnk27E' },
-  { date: '260730', videoId: '7cVHdAIKNyY' },
-  { date: '260729', videoId: 'rVScZPpUAh4' },
-  { date: '260728', videoId: '6kh3NEIy64o' },
-  { date: '260727', videoId: 'fnhkwUUw1IY' },
-  { date: '260724', videoId: 'wVXtAYVNVN8' },
-  { date: '260723', videoId: '-lKqaN2CRkM' },
-  { date: '260722', videoId: '6vOkmI4gE7Q' },
-  { date: '260721', videoId: 'fzLgpb6pNAc' },
-  { date: '260720', videoId: 'r7GNZoB_uM4' },
+  { date: '260804', videoId: 'RIBFaQZL7no', week: '4' },
+  { date: '260803', videoId: 'fGxzSRnk27E', week: '4' },
+  { date: '260730', videoId: '7cVHdAIKNyY', week: '0-3' },
+  { date: '260729', videoId: 'rVScZPpUAh4', week: '3' },
+  { date: '260728', videoId: '6kh3NEIy64o', week: '2' },
+  { date: '260727', videoId: 'fnhkwUUw1IY', week: '2' },
+  { date: '260724', videoId: 'wVXtAYVNVN8', week: '1' },
+  { date: '260723', videoId: '-lKqaN2CRkM', week: '1' },
+  { date: '260722', videoId: '6vOkmI4gE7Q', week: '0' },
+  { date: '260721', videoId: 'fzLgpb6pNAc', week: '0' },
+  { date: '260720', videoId: 'r7GNZoB_uM4', week: '0' },
 ]
 
 function todayYYMMDD() {
@@ -66,6 +63,7 @@ function formatArchiveDate(yymmdd) {
 function AdminAddReplayForm({ onAdded }) {
   const [date, setDate] = useState(todayYYMMDD())
   const [url, setUrl] = useState('')
+  const [week, setWeek] = useState('0')
 
   const handleAdd = async () => {
     const videoId = parseYouTubeUrl(url.trim())
@@ -73,7 +71,7 @@ function AdminAddReplayForm({ onAdded }) {
       alert('날짜(YYMMDD 6자리)와 올바른 유튜브 링크를 입력해주세요.')
       return
     }
-    const replay = { id: generateUUID(), date, videoId }
+    const replay = { id: generateUUID(), date, videoId, week }
     try {
       await putRecord('replay', replay)
       onAdded(replay)
@@ -106,6 +104,22 @@ function AdminAddReplayForm({ onAdded }) {
           className="flex-1 min-w-0 p-2.5 border border-white/10 rounded-xl text-sm bg-surface focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
         />
       </div>
+      <div>
+        <p className="text-[11px] text-gray-500 mb-1">소속 필터</p>
+        <div className="flex flex-wrap gap-1.5">
+          {ADMIN_WEEK_OPTIONS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setWeek(f.id)}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                week === f.id ? 'bg-brand text-white' : 'bg-surface text-gray-400 hover:bg-white/10'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <button
         onClick={handleAdd}
         className="w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
@@ -135,12 +149,32 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
     (c) => !adminReplays.some((a) => a.date === c.date)
   )
   const allReplays = [...adminReplays, ...curatedFiltered].sort((a, b) => b.date.localeCompare(a.date))
-  const replays = allReplays.filter((r) => matchesWeekFilter(weekFilter, dateToWeek(r.date)))
+  const replays = allReplays.filter((r) => matchesWeekFilter(weekFilter, r.week ?? '0'))
   const activeReplay = replays.find((r) => r.videoId === activeVideoId) || allReplays.find((r) => r.videoId === activeVideoId)
+  const randomMode = isRandomFilter(weekFilter)
 
   const handleDelete = (id) => {
     setAdminReplays(adminReplays.filter((r) => r.id !== id))
     removeRecord('replay', id).catch((e) => console.error('다시보기 삭제 실패', e))
+  }
+
+  const drawRandom = (pool) => {
+    if (pool.length === 0) {
+      setActiveVideoId(null)
+      return
+    }
+    const pick = pool[Math.floor(Math.random() * pool.length)]
+    setActiveVideoId(pick.videoId)
+  }
+
+  const handleSelectFilter = (filterId) => {
+    setWeekFilter(filterId)
+    if (isRandomFilter(filterId)) {
+      const pool = allReplays.filter((r) => matchesWeekFilter(filterId, r.week ?? '0'))
+      drawRandom(pool)
+    } else {
+      setActiveVideoId(null)
+    }
   }
 
   useEffect(() => {
@@ -188,7 +222,7 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
             {WEEK_FILTERS.map((f) => (
               <button
                 key={f.id}
-                onClick={() => setWeekFilter(f.id)}
+                onClick={() => handleSelectFilter(f.id)}
                 className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
                   weekFilter === f.id
                     ? 'bg-brand text-white'
@@ -200,38 +234,27 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
             ))}
           </div>
 
-          {/* 날짜 토글 필터 */}
-          <div className="flex flex-wrap gap-2">
-            {replays.map((r) => (
-              <span key={r.id || r.videoId} className="inline-flex items-center">
-                <button
-                  onClick={() => setActiveVideoId(r.videoId)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition ${
-                    activeVideoId === r.videoId
-                      ? 'bg-brand text-white'
-                      : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
-                  } ${admin && r.id ? 'rounded-r-none' : ''}`}
-                >
-                  {formatArchiveDate(r.date)}
-                </button>
-                {admin && r.id && (
-                  <button
-                    onClick={() => handleDelete(r.id)}
-                    className="px-1.5 py-1.5 rounded-r-lg bg-surface-alt hover:bg-red-500/20 text-gray-500 hover:text-red-400 border-l border-white/10"
-                    title="이 회차 삭제"
-                  >
-                    <Trash2 size={11} />
-                  </button>
-                )}
-              </span>
-            ))}
-          </div>
-
-          {activeVideoId ? (
+          {randomMode ? (
             <div className="space-y-2">
-              <div className="aspect-video rounded-xl overflow-hidden bg-black">
-                <div ref={mountRef} className="w-full h-full" />
-              </div>
+              {activeVideoId ? (
+                <>
+                  <div className="aspect-video rounded-xl overflow-hidden bg-black">
+                    <div ref={mountRef} className="w-full h-full" />
+                  </div>
+                  {activeReplay && (
+                    <p className="text-center text-xs text-gray-500">{formatArchiveDate(activeReplay.date)} 회차</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-gray-500 text-center py-4">이 범위에는 아직 등록된 회차가 없어요</p>
+              )}
+              <button
+                onClick={() => drawRandom(replays)}
+                className="w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
+              >
+                <Shuffle size={15} />
+                다시 뽑기
+              </button>
               {onAddToAnalysis && activeReplay && (
                 <button
                   onClick={() => onAddToAnalysis(activeReplay)}
@@ -243,9 +266,55 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
               )}
             </div>
           ) : (
-            <p className="text-xs text-gray-500 text-center py-4">
-              위 날짜를 누르면 바로 그 회차 영상을 볼 수 있어요
-            </p>
+            <>
+              {/* 날짜 토글 필터 */}
+              <div className="flex flex-wrap gap-2">
+                {replays.map((r) => (
+                  <span key={r.id || r.videoId} className="inline-flex items-center">
+                    <button
+                      onClick={() => setActiveVideoId(r.videoId)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition ${
+                        activeVideoId === r.videoId
+                          ? 'bg-brand text-white'
+                          : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                      } ${admin && r.id ? 'rounded-r-none' : ''}`}
+                    >
+                      {formatArchiveDate(r.date)}
+                    </button>
+                    {admin && r.id && (
+                      <button
+                        onClick={() => handleDelete(r.id)}
+                        className="px-1.5 py-1.5 rounded-r-lg bg-surface-alt hover:bg-red-500/20 text-gray-500 hover:text-red-400 border-l border-white/10"
+                        title="이 회차 삭제"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+
+              {activeVideoId ? (
+                <div className="space-y-2">
+                  <div className="aspect-video rounded-xl overflow-hidden bg-black">
+                    <div ref={mountRef} className="w-full h-full" />
+                  </div>
+                  {onAddToAnalysis && activeReplay && (
+                    <button
+                      onClick={() => onAddToAnalysis(activeReplay)}
+                      className="w-full flex items-center justify-center gap-1.5 bg-brand-light hover:bg-red-500/20 text-brand font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
+                    >
+                      <FolderPlus size={15} />
+                      이 회차 내 시뮬레이션 분석에 추가
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 text-center py-4">
+                  위 날짜를 누르면 바로 그 회차 영상을 볼 수 있어요
+                </p>
+              )}
+            </>
           )}
         </div>
       )}

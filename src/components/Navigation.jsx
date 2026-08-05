@@ -1,14 +1,14 @@
-import { Video, MessageCircle, PenLine, Rocket, User, PartyPopper } from 'lucide-react'
+import { Video, MessageCircle, PenLine, Rocket, User, PartyPopper, Sparkles } from 'lucide-react'
 
 const navItems = [
   { id: 'analysis', label: '시뮬레이션 분석실', short: '분석실', icon: Video },
   { id: 'qa', label: 'Q&A 커뮤니티', short: 'Q&A', icon: MessageCircle },
-  { id: 'practice', label: '돌발 연습실', short: '돌발 연습', icon: PenLine },
+  { id: 'practice', label: '돌발 연습실', short: '돌발연습', icon: PenLine },
 ]
 
 const SIMULATOR_URL = 'https://azuremooni.github.io/businesspt-simulator/'
 
-export default function Navigation({ currentPage, setCurrentPage, onOpenProfile }) {
+export default function Navigation({ currentPage, setCurrentPage, onOpenProfile, onOpenFeedback }) {
   return (
     <>
       {/* 상단 바 */}
@@ -37,14 +37,15 @@ export default function Navigation({ currentPage, setCurrentPage, onOpenProfile 
                     <button
                       key={item.id}
                       onClick={() => setCurrentPage(item.id)}
-                      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 active:scale-95 ${
+                      title={item.label}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition-all duration-300 active:scale-95 whitespace-nowrap ${
                         currentPage === item.id
                           ? 'bg-brand text-white shadow-floating scale-105'
                           : 'text-gray-400 hover:bg-white/10 hover:text-gray-100'
                       }`}
                     >
                       <Icon size={16} />
-                      {item.label}
+                      {item.short}
                     </button>
                   )
                 })}
@@ -59,6 +60,13 @@ export default function Navigation({ currentPage, setCurrentPage, onOpenProfile 
               >
                 <Rocket size={17} />
               </a>
+              <button
+                onClick={onOpenFeedback}
+                title="피드백 모음"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-surface-alt hover:bg-brand-light text-gray-400 hover:text-brand transition"
+              >
+                <Sparkles size={17} />
+              </button>
               <button
                 onClick={onOpenProfile}
                 title="내 프로필"

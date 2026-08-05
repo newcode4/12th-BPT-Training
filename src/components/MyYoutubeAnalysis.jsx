@@ -3,7 +3,52 @@ import { Bookmark, Trash2, Play } from 'lucide-react'
 import { formatTime } from '../utils/formatters'
 import { loadYouTubeAPI } from '../utils/youtube'
 
-export default function MyYoutubeAnalysis({ videoId, startSeconds, scraps, onAddScrap, onDeleteScrap }) {
+function ScrapMiniEditor({ scrap, onJump, onUpdate, onDelete }) {
+  const [title, setTitle] = useState(scrap.title || '')
+  const [note, setNote] = useState(scrap.note || '')
+  const dirtyRef = useRef(false)
+
+  // 타이핑마다 저장하지 않고, 입력이 멈추면 저장한다
+  useEffect(() => {
+    if (!dirtyRef.current) return
+    const t = setTimeout(() => onUpdate(scrap.id, title, note), 600)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, note])
+
+  return (
+    <div className="p-3 bg-surface-alt rounded-xl space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <button
+          onClick={onJump}
+          className="flex items-center gap-1 text-brand font-mono font-bold text-xs shrink-0"
+        >
+          <Play size={10} fill="currentColor" />
+          {formatTime(scrap.timestamp)}
+        </button>
+        <button onClick={() => onDelete(scrap.id)} className="text-gray-600 hover:text-red-500 shrink-0">
+          <Trash2 size={13} />
+        </button>
+      </div>
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => { dirtyRef.current = true; setTitle(e.target.value) }}
+        placeholder="소제목 (예: 가격 질문 대처)"
+        className="w-full text-sm font-bold p-2 border border-white/10 rounded-lg bg-surface focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+      />
+      <textarea
+        value={note}
+        onChange={(e) => { dirtyRef.current = true; setNote(e.target.value) }}
+        placeholder="느낀 점, 개선하고 싶은 점을 적어보세요"
+        rows="2"
+        className="w-full text-sm p-2 border border-white/10 rounded-lg bg-surface resize-none focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+      />
+    </div>
+  )
+}
+
+export default function MyYoutubeAnalysis({ videoId, startSeconds, scraps, onAddScrap, onUpdateScrap, onDeleteScrap }) {
   const mountRef = useRef(null)
   const playerRef = useRef(null)
   const [ready, setReady] = useState(false)
@@ -29,12 +74,12 @@ export default function MyYoutubeAnalysis({ videoId, startSeconds, scraps, onAdd
   const handleStartScrap = () => {
     if (!playerRef.current) return
     const t = Math.floor(playerRef.current.getCurrentTime())
-    setNoteDraft({ timestamp: t, text: '' })
+    setNoteDraft({ timestamp: t, title: '', text: '' })
   }
 
   const handleSaveScrap = () => {
     if (!noteDraft) return
-    onAddScrap(noteDraft.timestamp, noteDraft.text.trim())
+    onAddScrap(noteDraft.timestamp, noteDraft.title.trim(), noteDraft.text.trim())
     setNoteDraft(null)
   }
 
@@ -63,8 +108,15 @@ export default function MyYoutubeAnalysis({ videoId, startSeconds, scraps, onAdd
       {noteDraft && (
         <div className="p-3 bg-surface-alt rounded-xl space-y-2">
           <p className="text-xs font-mono font-bold text-brand">{formatTime(noteDraft.timestamp)}</p>
-          <textarea
+          <input
+            type="text"
             autoFocus
+            value={noteDraft.title}
+            onChange={(e) => setNoteDraft({ ...noteDraft, title: e.target.value })}
+            placeholder="소제목 (예: 가격 질문 대처)"
+            className="w-full text-sm font-bold p-2.5 border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+          />
+          <textarea
             value={noteDraft.text}
             onChange={(e) => setNoteDraft({ ...noteDraft, text: e.target.value })}
             placeholder="느낀 점, 개선하고 싶은 점을 적어보세요"
@@ -92,32 +144,29 @@ export default function MyYoutubeAnalysis({ videoId, startSeconds, scraps, onAdd
       {sortedScraps.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {sortedScraps.map((s) => (
-            <div key={s.id} className="flex items-center gap-1 bg-brand-light rounded-full pl-3 pr-1 py-1">
-              <button
-                onClick={() => handleChipClick(s)}
-                className="flex items-center gap-1 text-brand font-mono font-bold text-xs"
-              >
-                <Play size={10} fill="currentColor" />
-                {formatTime(s.timestamp)}
-              </button>
-              <button
-                onClick={() => onDeleteScrap(s.id)}
-                className="text-brand/50 hover:text-red-600 p-1"
-              >
-                <Trash2 size={11} />
-              </button>
-            </div>
+            <button
+              key={s.id}
+              onClick={() => handleChipClick(s)}
+              className="flex items-center gap-1 text-brand font-mono font-bold text-xs bg-brand-light rounded-full px-3 py-1"
+            >
+              <Play size={10} fill="currentColor" />
+              {formatTime(s.timestamp)}
+              {s.title && <span className="font-sans font-bold ml-1 max-w-[8rem] truncate">{s.title}</span>}
+            </button>
           ))}
         </div>
       )}
 
-      {sortedScraps.some((s) => s.note) && (
-        <div className="space-y-1.5">
-          {sortedScraps.filter((s) => s.note).map((s) => (
-            <p key={s.id} className="text-sm text-gray-300 bg-surface-alt rounded-lg p-2.5">
-              <span className="font-mono font-bold text-brand mr-1.5">{formatTime(s.timestamp)}</span>
-              {s.note}
-            </p>
+      {sortedScraps.length > 0 && (
+        <div className="space-y-2">
+          {sortedScraps.map((s) => (
+            <ScrapMiniEditor
+              key={s.id}
+              scrap={s}
+              onJump={() => handleChipClick(s)}
+              onUpdate={onUpdateScrap}
+              onDelete={onDeleteScrap}
+            />
           ))}
         </div>
       )}

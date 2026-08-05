@@ -4,6 +4,7 @@ import ProfileModal from './components/ProfileModal'
 import WelcomeModal from './components/WelcomeModal'
 import Footer from './components/Footer'
 import SimulatorShortcut from './components/SimulatorShortcut'
+import FeedbackDigest from './components/FeedbackDigest'
 import VideoAnalysisRoom from './pages/VideoAnalysisRoom'
 import QACommunity from './pages/QACommunity'
 import PracticeRoom from './pages/PracticeRoom'
@@ -14,6 +15,8 @@ const HEARTBEAT_MS = 30 * 1000
 export default function App() {
   const [currentPage, setCurrentPage] = useState('analysis')
   const [showProfile, setShowProfile] = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [jumpWeek, setJumpWeek] = useState(null)
   const [session, setSession] = useState(() => getSession())
   const [checkingSession, setCheckingSession] = useState(true)
   const author = session?.name || ''
@@ -46,16 +49,21 @@ export default function App() {
     return () => clearInterval(timer)
   }, [])
 
+  const handleJumpToWeek = (week) => {
+    setJumpWeek(week)
+    setCurrentPage('analysis')
+  }
+
   const renderPage = () => {
     switch (currentPage) {
       case 'analysis':
-        return <VideoAnalysisRoom />
+        return <VideoAnalysisRoom jumpWeek={jumpWeek} onJumpConsumed={() => setJumpWeek(null)} />
       case 'qa':
         return <QACommunity author={author} onLogout={() => setSession(null)} />
       case 'practice':
         return <PracticeRoom />
       default:
-        return <VideoAnalysisRoom />
+        return <VideoAnalysisRoom jumpWeek={jumpWeek} onJumpConsumed={() => setJumpWeek(null)} />
     }
   }
 
@@ -77,6 +85,7 @@ export default function App() {
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}
         onOpenProfile={() => setShowProfile(true)}
+        onOpenFeedback={() => setShowFeedback(true)}
       />
       {/* key를 바꿔 페이지가 바뀔 때마다 등장 모션이 다시 돈다 */}
       <main key={currentPage} className="anim-rise flex-1 max-w-5xl w-full mx-auto px-4 py-6">
@@ -90,6 +99,13 @@ export default function App() {
           author={author}
           onLoggedOut={() => { setShowProfile(false); setSession(null) }}
           onClose={() => setShowProfile(false)}
+        />
+      )}
+
+      {showFeedback && (
+        <FeedbackDigest
+          onJumpToWeek={handleJumpToWeek}
+          onClose={() => setShowFeedback(false)}
         />
       )}
     </div>

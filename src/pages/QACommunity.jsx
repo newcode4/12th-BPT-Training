@@ -3,11 +3,11 @@ import {
   MessageCircle, AlertTriangle, MessageSquare, Star, ThumbsUp, Mic, PenLine,
   PenSquare, ArrowLeft, Trash2, Loader2, CloudOff, Search, Check
 } from 'lucide-react'
-import { formatDate } from '../utils/formatters'
+import { formatDate, generateUUID } from '../utils/formatters'
 import { supabase, supabaseConfigured } from '../utils/supabase'
 import { WEEKS } from '../utils/weeks'
 import { TOPICS, parseTags, buildTags } from '../utils/qaTags'
-import { listRecords } from '../utils/cloudStore'
+import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 import AnswerPracticeModal from '../components/AnswerPracticeModal'
 import ScriptPracticeModal from '../components/ScriptPracticeModal'
 import ProfileModal from '../components/ProfileModal'
@@ -78,6 +78,8 @@ export default function QACommunity({ author, onLogout }) {
   const [answerContent, setAnswerContent] = useState('')
   const [practiceAnswer, setPracticeAnswer] = useState(null)
   const [scriptPracticeOpen, setScriptPracticeOpen] = useState(false)
+  const [answerSort, setAnswerSort] = useState('recommended') // 'recommended' | 'newest'
+  const [likedAnswers, setLikedAnswers] = useState(() => new Map()) // answerId -> like 레코드 id
   const [scripts, setScripts] = useState({}) // questionId -> { id, text } (돌발질문 전용 개인 원고, 돌발 연습실과 공유)
   const [submitting, setSubmitting] = useState(false)
 
@@ -113,6 +115,28 @@ export default function QACommunity({ author, onLogout }) {
   useEffect(() => {
     loadQuestions()
   }, [])
+
+  // 돌발 연습실에서 원고를 저장하면 공개 답변도 같이 바뀌므로, 상세 화면을 새로 불러와 반영한다
+  const refreshSelectedQuestion = async () => {
+    if (!selectedQuestion) return
+    const { data, error } = await supabase
+      .from('questions')
+      .select('*, answers(*)')
+      .eq('id', selectedQuestion.id)
+      .single()
+    if (error) return
+    const updated = mapQuestion(data)
+    setSelectedQuestion(updated)
+    setQuestions((prev) => prev.map((q) => (q.id === updated.id ? updated : q)))
+  }
+
+  // 추천(좋아요)은 1인당 1회만 — 이미 누른 답변 목록을 미리 불러온다
+  useEffect(() => {
+    if (!author) return
+    listRecords('like', { author })
+      .then((rows) => setLikedAnswers(new Map(rows.map((r) => [r.answerId, r.id]))))
+      .catch((e) => console.error('추천 목록 불러오기 실패', e))
+  }, [author])
 
   // 돌발질문 개인 원고는 돌발 연습실과 같은 저장소를 공유한다 ("답변하기"= "원고쓰기")
   useEffect(() => {
@@ -226,13 +250,28 @@ export default function QACommunity({ author, onLogout }) {
   }
 
   const handleLikeAnswer = async (answerId) => {
-    if (!selectedQuestion) return
+    if (!selectedQuestion || !author) return
     const target = selectedQuestion.answers.find(a => a.id === answerId)
     if (!target) return
-    const newLikes = target.likes + 1
+    const alreadyLiked = likedAnswers.has(answerId)
+    const newLikes = Math.max(0, target.likes + (alreadyLiked ? -1 : 1))
 
     const { error } = await supabase.from('answers').update({ likes: newLikes }).eq('id', answerId)
     if (error) return
+
+    if (alreadyLiked) {
+      const recordId = likedAnswers.get(answerId)
+      await removeRecord('like', recordId).catch((e) => console.error('추천 취소 실패', e))
+      setLikedAnswers((prev) => {
+        const next = new Map(prev)
+        next.delete(answerId)
+        return next
+      })
+    } else {
+      const recordId = generateUUID()
+      await putRecord('like', { id: recordId, answerId, author }, { author }).catch((e) => console.error('추천 저장 실패', e))
+      setLikedAnswers((prev) => new Map(prev).set(answerId, recordId))
+    }
 
     const updatedQuestion = {
       ...selectedQuestion,
@@ -329,7 +368,12 @@ export default function QACommunity({ author, onLogout }) {
   const usedTopics = TOPICS.filter(t => questions.some(q => q.topic === t))
   const pinnedAnswers = (selectedQuestion?.answers || []).filter(a => a.isPinned)
   const unpinnedAnswers = (selectedQuestion?.answers || []).filter(a => !a.isPinned)
-  const sortedAnswers = [...pinnedAnswers, ...unpinnedAnswers]
+  const sortedUnpinned = [...unpinnedAnswers].sort((a, b) => (
+    answerSort === 'recommended'
+      ? (b.likes - a.likes) || (new Date(b.createdAt) - new Date(a.createdAt))
+      : new Date(b.createdAt) - new Date(a.createdAt)
+  ))
+  const sortedAnswers = [...pinnedAnswers, ...sortedUnpinned]
 
   const categoryBadge = (category) => {
     const isUnexpected = category !== 'general'
@@ -698,7 +742,22 @@ export default function QACommunity({ author, onLogout }) {
           <hr className="border-white/10" />
 
           <div className="space-y-3">
-            <h4 className="font-bold">답변 ({selectedQuestion.answers?.length || 0})</h4>
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold">답변 ({selectedQuestion.answers?.length || 0})</h4>
+              <div className="flex gap-1 bg-surface-alt rounded-lg p-0.5">
+                {[{ id: 'recommended', label: '추천순' }, { id: 'newest', label: '최신순' }].map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() => setAnswerSort(opt.id)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
+                      answerSort === opt.id ? 'bg-brand text-white' : 'text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {sortedAnswers.length === 0 && (
               <p className="text-sm text-gray-500 text-center py-6">
@@ -726,9 +785,13 @@ export default function QACommunity({ author, onLogout }) {
                 <div className="flex gap-2 flex-wrap">
                   <button
                     onClick={() => handleLikeAnswer(answer.id)}
-                    className="flex items-center gap-1 text-sm font-bold text-brand bg-surface px-3 py-1.5 rounded-lg border border-white/10 active:scale-95 transition"
+                    className={`flex items-center gap-1 text-sm font-bold px-3 py-1.5 rounded-lg border active:scale-95 transition ${
+                      likedAnswers.has(answer.id)
+                        ? 'text-white bg-brand border-brand'
+                        : 'text-brand bg-surface border-white/10'
+                    }`}
                   >
-                    <ThumbsUp size={13} />
+                    <ThumbsUp size={13} fill={likedAnswers.has(answer.id) ? 'currentColor' : 'none'} />
                     {answer.likes}
                   </button>
                   <button
@@ -765,24 +828,30 @@ export default function QACommunity({ author, onLogout }) {
 
           <hr className="border-white/10" />
 
-          <div className="space-y-3">
-            <h4 className="font-bold">답변하기</h4>
-            <textarea
-              placeholder="대처 방법을 입력해주세요..."
-              value={answerContent}
-              onChange={(e) => setAnswerContent(e.target.value)}
-              className="w-full p-3.5 bg-surface-alt border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-              rows="4"
-            />
-            <button
-              onClick={handleAddAnswer}
-              disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition active:scale-95"
-            >
-              {submitting && <Loader2 size={16} className="animate-spin" />}
-              답변 등록
-            </button>
-          </div>
+          {selectedQuestion.category === 'general' ? (
+            <div className="space-y-3">
+              <h4 className="font-bold">답변하기</h4>
+              <textarea
+                placeholder="대처 방법을 입력해주세요..."
+                value={answerContent}
+                onChange={(e) => setAnswerContent(e.target.value)}
+                className="w-full p-3.5 bg-surface-alt border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                rows="4"
+              />
+              <button
+                onClick={handleAddAnswer}
+                disabled={submitting}
+                className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition active:scale-95"
+              >
+                {submitting && <Loader2 size={16} className="animate-spin" />}
+                답변 등록
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 text-center">
+              돌발질문은 위쪽 "내 원고 쓰기 · 연습하기" 버튼으로 답변해요. 한 사람당 답변은 하나만 유지돼요.
+            </p>
+          )}
         </div>
       )}
 
@@ -800,6 +869,8 @@ export default function QACommunity({ author, onLogout }) {
           questionContent={selectedQuestion.content}
           existing={scripts[selectedQuestion.id]}
           author={author}
+          syncAnswers
+          onAnswerSynced={refreshSelectedQuestion}
           onSaved={(questionId, record) =>
             setScripts((prev) => {
               const next = { ...prev }
@@ -808,7 +879,7 @@ export default function QACommunity({ author, onLogout }) {
               return next
             })
           }
-          onClose={() => setScriptPracticeOpen(false)}
+          onClose={() => { setScriptPracticeOpen(false); refreshSelectedQuestion() }}
         />
       )}
     </div>

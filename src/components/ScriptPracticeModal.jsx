@@ -2,12 +2,36 @@ import { useState, useEffect, useRef } from 'react'
 import { PenLine, X, Check, Play, Pause, RotateCcw, Copy, EyeOff, Eye } from 'lucide-react'
 import { formatTime, generateUUID } from '../utils/formatters'
 import { putRecord, removeRecord } from '../utils/cloudStore'
+import { supabase, supabaseConfigured } from '../utils/supabase'
 
 // 한국어 발표 기준 대략 분당 320자 정도로 잡아 예상 시간을 보여준다
 const CHARS_PER_MINUTE = 320
 
+// 돌발질문에서는 "원고 쓰기" = "답변하기" — 저장한 원고를 Q&A 공개 답변에도 그대로 반영한다.
+// 한 사람당 한 질문에 공개 답변은 하나만 유지한다 (다시 쓰면 그 답변이 갱신된다).
+async function syncPublicAnswer(questionId, author, text) {
+  if (!supabaseConfigured || !questionId || !author) return
+  const { data: existingAnswer } = await supabase
+    .from('answers')
+    .select('id')
+    .eq('question_id', questionId)
+    .eq('author', author)
+    .maybeSingle()
+
+  if (text.trim()) {
+    if (existingAnswer) {
+      await supabase.from('answers').update({ content: text }).eq('id', existingAnswer.id)
+    } else {
+      await supabase.from('answers').insert({ question_id: questionId, content: text, author })
+    }
+  } else if (existingAnswer) {
+    await supabase.from('answers').delete().eq('id', existingAnswer.id)
+  }
+}
+
 export default function ScriptPracticeModal({
-  questionId, questionTitle, questionContent, existing, author, blind = false, onSaved, onClose,
+  questionId, questionTitle, questionContent, existing, author, blind = false,
+  syncAnswers = false, onSaved, onAnswerSynced, onClose,
 }) {
   const hasExisting = Boolean(existing?.text)
   // 랜덤 뽑기의 목적은 "안 보고 말하기" — 이미 써둔 원고가 있어도 처음엔 가려둔다
@@ -19,6 +43,13 @@ export default function ScriptPracticeModal({
   const textareaRef = useRef(null)
   const recordIdRef = useRef(existing?.id || generateUUID())
   const dirtyRef = useRef(false)
+
+  // 모달이 떠 있는 동안 배경 페이지가 같이 스크롤되며 화면이 밀리는 것을 막는다
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
 
   useEffect(() => {
     if (!running) return
@@ -52,6 +83,15 @@ export default function ScriptPracticeModal({
     } catch (e) {
       console.error('스크립트 저장 실패', e)
     }
+
+    if (syncAnswers) {
+      try {
+        await syncPublicAnswer(questionId, author, text)
+        onAnswerSynced?.()
+      } catch (e) {
+        console.error('공개 답변 동기화 실패', e)
+      }
+    }
   }
 
   const charCount = script.trim().length
@@ -69,11 +109,11 @@ export default function ScriptPracticeModal({
 
   return (
     <div
-      className="anim-fade fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-50 md:p-4"
+      className="anim-fade fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto overscroll-contain"
       onClick={onClose}
     >
       <div
-        className="anim-modal bg-surface rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-lg p-5 md:p-6 max-h-[92vh] overflow-y-auto"
+        className="anim-modal bg-surface rounded-2xl shadow-xl w-full md:max-w-lg p-5 md:p-6 max-h-[90vh] overflow-y-auto my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">

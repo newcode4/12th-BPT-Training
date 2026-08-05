@@ -13,7 +13,8 @@ export const ROSTER = [
 const SESSION_KEY = 'pt-session'
 const STALE_MS = 5 * 60 * 1000 // 5분간 응답 없으면 끊긴 세션으로 간주하고 자리 회수
 
-const DEVICE_LIMIT_SETTING_ID = 'device-limit'
+// records.id는 uuid 컬럼이라 문자열 키를 쓸 수 없다 — 고정된 uuid를 예약해서 쓴다
+const DEVICE_LIMIT_SETTING_ID = '00000000-0000-4000-8000-000000000001'
 export const DEFAULT_DEVICE_LIMIT = 1
 
 // 관리자가 켜고 끄는 "한 사람당 동시 로그인 허용 기기 수" (PC + 모바일 = 2)

@@ -18,12 +18,12 @@ import WeekReferenceVideos from '../components/WeekReferenceVideos'
 import AllReplaysArchive from '../components/AllReplaysArchive'
 import WeekInsights from '../components/WeekInsights'
 import WeekFeedback from '../components/WeekFeedback'
-import FeedbackDigest from '../components/FeedbackDigest'
+import CurriculumOverview from '../components/CurriculumOverview'
 import { WEEKS } from '../utils/weeks'
 
 const FULL_RECORDING_FOLDER = '전체 녹음'
 
-export default function VideoAnalysisRoom() {
+export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   const [selectedWeek, setSelectedWeek] = useState('0')
   const [selectedFolder, setSelectedFolder] = useState(FULL_RECORDING_FOLDER)
   const [sourceMode, setSourceMode] = useState('file') // 'file' | 'youtube'
@@ -53,6 +53,13 @@ export default function VideoAnalysisRoom() {
   const lastScrapId = useRef(null)
   const playerSectionRef = useRef(null)
   const prevWeekRef = useRef(selectedWeek)
+
+  useEffect(() => {
+    if (!jumpWeek) return
+    setSelectedWeek(jumpWeek)
+    setNotesOpen(true)
+    onJumpConsumed?.()
+  }, [jumpWeek])
 
   useEffect(() => {
     // 시뮬레이션 분석(녹음/유튜브 링크)은 개인 기록이라 본인 것만 불러온다
@@ -402,10 +409,19 @@ export default function VideoAnalysisRoom() {
     }
   }
 
-  const handleYtAddScrap = (timestamp, note) => {
+  const handleYtAddScrap = (timestamp, title, note) => {
     if (!ytActiveAnalysis) return
-    const newScrap = { id: generateUUID(), timestamp, note, author, createdAt: new Date().toISOString() }
+    const newScrap = { id: generateUUID(), timestamp, title, note, author, createdAt: new Date().toISOString() }
     const updated = { ...ytActiveAnalysis, scraps: [...ytActiveAnalysis.scraps, newScrap] }
+    persistYtAnalysis(updated)
+  }
+
+  const handleYtUpdateScrap = (scrapId, title, note) => {
+    if (!ytActiveAnalysis) return
+    const updated = {
+      ...ytActiveAnalysis,
+      scraps: ytActiveAnalysis.scraps.map(s => s.id === scrapId ? { ...s, title, note } : s),
+    }
     persistYtAnalysis(updated)
   }
 
@@ -458,7 +474,13 @@ export default function VideoAnalysisRoom() {
 
   return (
     <div className="space-y-6">
-      <FeedbackDigest onJumpToWeek={(week) => { setSelectedWeek(week); setNotesOpen(true) }} />
+      <CurriculumOverview onSelect={(week, folder) => {
+        setSelectedWeek(week)
+        setSelectedFolder(folder)
+        requestAnimationFrame(() => {
+          playerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        })
+      }} />
 
     <div className="flex flex-col md:flex-row gap-6">
       {/* 좌측 사이드바 (데스크톱 고정, 주차 + 세부 폴더 트리) */}
@@ -921,6 +943,7 @@ export default function VideoAnalysisRoom() {
                     startSeconds={ytActiveAnalysis.startSeconds}
                     scraps={ytActiveAnalysis.scraps}
                     onAddScrap={handleYtAddScrap}
+                    onUpdateScrap={handleYtUpdateScrap}
                     onDeleteScrap={handleYtDeleteScrap}
                   />
                   <button

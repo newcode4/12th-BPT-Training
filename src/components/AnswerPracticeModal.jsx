@@ -28,6 +28,13 @@ export default function AnswerPracticeModal({ answerContent, onClose }) {
     }
   }, [])
 
+  // 모달이 떠 있는 동안 배경 페이지가 같이 스크롤되며 화면이 밀리는 것을 막는다
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
   const handleStart = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })

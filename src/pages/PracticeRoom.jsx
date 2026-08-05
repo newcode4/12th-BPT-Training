@@ -307,6 +307,7 @@ export default function PracticeRoom() {
           existing={scripts[practiceQuestion.id]}
           author={author}
           blind={practiceBlind}
+          syncAnswers
           onSaved={(questionId, record) =>
             setScripts((prev) => {
               const next = { ...prev }
