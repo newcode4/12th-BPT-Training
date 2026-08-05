@@ -12,6 +12,9 @@ html {
   scroll-behavior: smooth;
   /* iOS에서 가로 방향 전환 시 글자 크기가 멋대로 커지는 것 방지 */
   -webkit-text-size-adjust: 100%;
+  /* 메뉴 이동 시 세로 스크롤바가 생겼다 사라지며 화면이 좌우로 울렁이는 것 방지 */
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
 }
 
 body {
