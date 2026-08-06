@@ -364,9 +364,8 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
     setAnalyses([...analyses, analysis])
     putRecord('analysis', analysis, { author, week: selectedWeek })
       .catch(e => alert('내 분석에 추가하지 못했어요: ' + e.message))
-    setShowAllMine(true)
     requestAnimationFrame(() => {
-      playerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      document.getElementById('youtube-simulation-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
   }
 
@@ -429,8 +428,8 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   const myAllAnalyses = analyses
     .filter(a => a.source === 'youtube')
     .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
-  // 모아보기에서 이 주차로 지정해둔 유튜브 시뮬레이션은, 그 주차 왼쪽 패널에서도 보인다
-  const myWeekAnalyses = myAllAnalyses.filter(a => (a.week || '0') === selectedWeek)
+  // 모아보기에서 이 주차/폴더로 지정해둔 유튜브 시뮬레이션은, 그 카테고리에서도 보인다
+  const myFolderAnalyses = myAllAnalyses.filter(a => (a.week || '0') === selectedWeek && (a.folder || FULL_RECORDING_FOLDER) === selectedFolder)
 
   // 왼쪽 메뉴(주차/폴더)를 눌렀을 때 실제로 화면이 바뀐 걸 느낄 수 있도록,
   // 관련 콘텐츠 쪽으로 스크롤해준다. 사이드바가 화면 밖에 있으면 클릭해도 아무 변화가
@@ -769,16 +768,16 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
           </div>
         )}
 
-        {/* 모아보기에서 이 주차로 지정해둔 유튜브 시뮬레이션 — 왼쪽 패널에서 주차를 옮겨도 여기서 바로 보인다 */}
-        {!showAllMine && myWeekAnalyses.length > 0 && (
-          <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
+        {/* 모아보기에서 이 주차로 지정해둔 유튜브 시뮬레이션 — 왼쪽 패널에서 주차/폴더에 맞게 보인다 */}
+        {!showAllMine && myFolderAnalyses.length > 0 && (
+          <div id="youtube-simulation-section" className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 scroll-mt-4">
             <h3 className="flex items-center gap-2 text-lg font-extrabold mb-1">
               <LayoutGrid size={18} className="text-gray-500" />
-              {weekLabel} 시뮬레이션 ({myWeekAnalyses.length})
+              {weekLabel} · {selectedFolder} 라이브 스크랩 ({myFolderAnalyses.length})
             </h3>
-            <p className="text-xs text-gray-500 mb-3">"내 시뮬레이션 모아보기"에서 이 주차로 지정한 유튜브 시뮬레이션이에요</p>
+            <p className="text-xs text-gray-500 mb-3">현재 폴더에 스크랩된 라이브 영상이에요</p>
             <MySimulationsOverview
-              analyses={myWeekAnalyses}
+              analyses={myFolderAnalyses}
               author={author}
               onAddLink={handleAddMyLink}
               onUpdateMeta={persistMySimUpdate}

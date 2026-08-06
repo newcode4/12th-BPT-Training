@@ -10,6 +10,12 @@ import ScriptPracticeModal from '../components/ScriptPracticeModal'
 const PAGE_SIZE = 15
 const TITLE_CLAMP_THRESHOLD = 60
 
+const ETC_WEEK_ID = 'etc'
+function practiceWeekLabel(weekId) {
+  if (weekId === ETC_WEEK_ID) return '기타'
+  return WEEKS.find(w => w.id === weekId)?.label || `${weekId}주차`
+}
+
 function Chip({ active, onClick, children }) {
   return (
     <button
@@ -146,7 +152,7 @@ export default function PracticeRoom({ initialScriptFilter, onInitialFilterConsu
     const picked = getRandomItem(pool)
     setWeekPickerOpen(false)
     if (!picked) {
-      alert(`${WEEKS.find(w => w.id === weekId)?.label || weekId}에는 등록된 돌발질문이 없어요.`)
+      alert(`${practiceWeekLabel(weekId)}에는 등록된 돌발질문이 없어요.`)
       return
     }
     openPractice(picked, true)
@@ -199,6 +205,12 @@ export default function PracticeRoom({ initialScriptFilter, onInitialFilterConsu
                   {w.label}
                 </button>
               ))}
+              <button
+                onClick={() => handleRandomWeek(ETC_WEEK_ID)}
+                className="shrink-0 px-3 py-2 rounded-xl text-xs font-bold bg-surface-alt text-gray-300 hover:bg-brand hover:text-white transition active:scale-95"
+              >
+                기타
+              </button>
             </div>
           )}
           <button
@@ -230,6 +242,9 @@ export default function PracticeRoom({ initialScriptFilter, onInitialFilterConsu
               {w.label}
             </Chip>
           ))}
+          <Chip active={weekFilter === ETC_WEEK_ID} onClick={() => setWeekFilter(ETC_WEEK_ID)}>
+            기타
+          </Chip>
         </div>
 
         {/* 유형 필터 */}
@@ -298,7 +313,7 @@ export default function PracticeRoom({ initialScriptFilter, onInitialFilterConsu
                 )}
                 {q.week && (
                   <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-gray-300">
-                    {WEEKS.find(w => w.id === q.week)?.label || `${q.week}주차`}
+                    {practiceWeekLabel(q.week)}
                   </span>
                 )}
                 {hasScript && (
