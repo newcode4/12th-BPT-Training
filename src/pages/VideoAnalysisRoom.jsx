@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Video, Bookmark, RotateCcw, Save, Archive, Download, Trash2,
   ChevronDown, ChevronRight, Sparkles, ArrowUpDown, Upload, MonitorPlay, Folder,
-  ShieldCheck, Plus, X, AlertCircle, Pencil
+  ShieldCheck, Plus, X, AlertCircle, Pencil, LayoutGrid
 } from 'lucide-react'
 import { generateUUID, formatTime, downloadJSON, hmsToSeconds } from '../utils/formatters'
 import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
@@ -27,6 +27,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   const [selectedWeek, setSelectedWeek] = useState('0')
   const [selectedFolder, setSelectedFolder] = useState(FULL_RECORDING_FOLDER)
   const [sourceMode, setSourceMode] = useState('file') // 'file' | 'youtube'
+  const [showAllMine, setShowAllMine] = useState(false)
 
   const [file, setFile] = useState(null)
   const [needsReattach, setNeedsReattach] = useState(false)
@@ -320,6 +321,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   }
 
   const handleLoadAnalysis = async (analysis) => {
+    setShowAllMine(false)
     setSelectedWeek(analysis.week || '0')
     setSelectedFolder(analysis.folder || FULL_RECORDING_FOLDER)
     if (analysis.source === 'youtube') {
@@ -450,6 +452,20 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
       return sortOrder === 'oldest' ? diff : -diff
     })
   const weekLabel = WEEKS.find(w => w.id === selectedWeek)?.label
+  // 어느 주차/폴더든 상관없이 내가 올린 시뮬레이션을 한 번에 모아 보는 용도 (analyses는 이미 author로 스코핑됨)
+  const myAllAnalyses = [...analyses].sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
+
+  // 왼쪽 메뉴(주차/폴더)를 눌렀을 때 실제로 화면이 바뀐 걸 느낄 수 있도록,
+  // 관련 콘텐츠 쪽으로 스크롤해준다. 사이드바가 화면 밖에 있으면 클릭해도 아무 변화가
+  // 안 보이는 것처럼 느껴지는 문제였다.
+  const goToWeekFolder = (weekId, folderName) => {
+    setShowAllMine(false)
+    setSelectedWeek(weekId)
+    if (folderName) setSelectedFolder(folderName)
+    requestAnimationFrame(() => {
+      playerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
 
   const WeekNavButton = ({ w, vertical }) => (
     <button
@@ -475,6 +491,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   return (
     <div className="space-y-6">
       <CurriculumOverview onSelect={(week, folder) => {
+        setShowAllMine(false)
         setSelectedWeek(week)
         setSelectedFolder(folder)
         requestAnimationFrame(() => {
@@ -490,13 +507,32 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
             <Video size={14} />
             시뮬레이션 분석실
           </p>
+
+          <button
+            onClick={() => {
+              setShowAllMine(true)
+              requestAnimationFrame(() => {
+                playerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              })
+            }}
+            className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl font-bold text-sm transition mb-1 ${
+              showAllMine ? 'bg-brand text-white' : 'bg-surface-alt text-gray-300 hover:bg-white/10'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <LayoutGrid size={14} />
+              내 시뮬레이션 모아보기
+            </span>
+            <span className="opacity-70 text-xs">({myAllAnalyses.length})</span>
+          </button>
+
           {WEEKS.map((w) => {
             const weekFolders = [FULL_RECORDING_FOLDER, ...(WEEK_CURRICULUM[w.id] || [])]
-            const isOpen = selectedWeek === w.id
+            const isOpen = !showAllMine && selectedWeek === w.id
             return (
               <div key={w.id}>
                 <button
-                  onClick={() => setSelectedWeek(w.id)}
+                  onClick={() => goToWeekFolder(w.id)}
                   className={`w-full text-left px-3 py-2.5 rounded-xl font-bold text-sm transition ${
                     isOpen ? 'bg-brand text-white' : 'text-gray-400 hover:bg-surface-alt'
                   }`}
@@ -513,7 +549,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
                     {weekFolders.map((folder) => (
                       <button
                         key={folder}
-                        onClick={() => setSelectedFolder(folder)}
+                        onClick={() => goToWeekFolder(w.id, folder)}
                         className={`w-full text-left pl-3 pr-2 py-1.5 rounded-lg text-xs font-semibold transition ${
                           selectedFolder === folder
                             ? 'bg-brand-light text-brand'
@@ -539,13 +575,28 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
             시뮬레이션 분석실
           </h2>
 
+          <button
+            onClick={() => {
+              setShowAllMine(true)
+              requestAnimationFrame(() => {
+                playerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              })
+            }}
+            className={`w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm transition active:scale-95 ${
+              showAllMine ? 'bg-brand text-white shadow-floating' : 'bg-surface-alt text-gray-300 hover:bg-white/10'
+            }`}
+          >
+            <LayoutGrid size={14} />
+            내 시뮬레이션 모아보기 ({myAllAnalyses.length})
+          </button>
+
           <div className="flex gap-2 overflow-x-auto -mx-4 px-4 scrollbar-none">
             {WEEKS.map((w) => (
               <button
                 key={w.id}
-                onClick={() => setSelectedWeek(w.id)}
+                onClick={() => goToWeekFolder(w.id)}
                 className={`shrink-0 px-4 py-2.5 rounded-xl font-bold text-sm transition active:scale-95 ${
-                  selectedWeek === w.id
+                  !showAllMine && selectedWeek === w.id
                     ? 'bg-brand text-white shadow-floating'
                     : 'bg-surface-alt text-gray-400 hover:bg-white/10'
                 }`}
@@ -565,9 +616,9 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
               {folders.map((folder) => (
                 <button
                   key={folder}
-                  onClick={() => setSelectedFolder(folder)}
+                  onClick={() => goToWeekFolder(selectedWeek, folder)}
                   className={`shrink-0 px-3 py-2 rounded-lg font-bold text-xs transition active:scale-95 ${
-                    selectedFolder === folder
+                    !showAllMine && selectedFolder === folder
                       ? 'bg-brand-light text-brand ring-1 ring-brand/40'
                       : 'bg-surface-alt text-gray-400 hover:bg-white/10'
                   }`}
@@ -581,7 +632,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
         </div>
 
         {/* 관리자: 세부 폴더(카테고리) 추가/삭제 */}
-        {admin && (
+        {!showAllMine && admin && (
           <div className="bg-surface rounded-2xl shadow-card border border-brand/20 p-4 space-y-3">
             <p className="flex items-center gap-1.5 text-xs font-bold text-brand">
               <ShieldCheck size={13} />
@@ -620,11 +671,69 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
         )}
 
         {/* 예시 시뮬레이션 영상 (유튜브 스크랩) */}
-        <WeekReferenceVideos week={selectedWeek} />
-        <AllReplaysArchive onAddToAnalysis={handleAddReplayToAnalysis} />
+        {!showAllMine && <WeekReferenceVideos week={selectedWeek} />}
+        {!showAllMine && <AllReplaysArchive onAddToAnalysis={handleAddReplayToAnalysis} />}
+
+        {/* 내 시뮬레이션 모아보기 — 주차/폴더 안 가리고 내가 올린 걸 한 번에 훑어보는 용도 */}
+        {showAllMine && (
+          <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="flex items-center gap-2 text-lg font-extrabold">
+                <LayoutGrid size={18} className="text-gray-500" />
+                내 시뮬레이션 모아보기 ({myAllAnalyses.length})
+              </h3>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">주차 상관없이 내가 올린 시뮬레이션이에요. 카드를 클릭하면 그 주차로 이동해서 이어볼 수 있어요</p>
+            <div className="stagger grid gap-3">
+              {myAllAnalyses.map((analysis) => (
+                <div
+                  key={analysis.id}
+                  onClick={() => handleLoadAnalysis(analysis)}
+                  className="lift p-4 border border-white/10 rounded-2xl cursor-pointer hover:bg-surface-alt active:bg-white/10"
+                >
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                        {analysis.source === 'youtube'
+                          ? <MonitorPlay size={14} className="text-red-500 shrink-0" />
+                          : <Upload size={14} className="text-gray-500 shrink-0" />}
+                        <h4 className="font-bold truncate min-w-0" title={analysisDisplayName(analysis)}>
+                          {analysisDisplayName(analysis)}
+                        </h4>
+                        <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-gray-400">
+                          {WEEKS.find(w => w.id === (analysis.week || '0'))?.label || `${analysis.week}주차`} · {analysis.folder || FULL_RECORDING_FOLDER}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-400">
+                        스크랩 {analysis.scraps?.length || 0}개 · {new Date(analysis.uploadedAt).toLocaleString('ko-KR')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div onClick={(e) => e.stopPropagation()} className="flex gap-2">
+                        <button
+                          onClick={() => handleDeleteAnalysis(analysis.id)}
+                          className="p-2 border border-white/10 hover:border-red-500/30 hover:bg-red-500/10 text-gray-500 hover:text-red-500 rounded-lg transition"
+                          title="삭제"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                      <ChevronRight size={18} className="text-gray-600" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {myAllAnalyses.length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-6">
+                  아직 등록한 시뮬레이션이 없어요. 아래에서 첫 시뮬레이션을 등록해보세요
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* 저장된 분석 목록 (현재 주차 + 폴더) - 관리하기 편하도록 업로드보다 위에 배치 */}
-        {analysesInFolder.length > 0 && (
+        {!showAllMine && analysesInFolder.length > 0 && (
           <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
             <div className="flex items-center justify-between mb-1">
               <h3 className="flex items-center gap-2 text-lg font-extrabold">
@@ -728,7 +837,9 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
             onClick={() => setAnalysisOpen(!analysisOpen)}
             className="w-full flex items-center justify-between gap-2 p-4 md:p-6 text-left hover:bg-white/[0.02] transition"
           >
-            <div className="min-w-0">
+            {/* key로 주차/폴더가 바뀔 때마다 다시 마운트시켜서, 왼쪽 메뉴를 눌렀을 때
+                여기 라벨이 확실히 "바뀌었다"는 느낌이 들게 살짝 팝 애니메이션을 준다 */}
+            <div key={`${selectedWeek}-${selectedFolder}`} className="anim-pop min-w-0">
               <h3 className="text-lg font-extrabold">내 시뮬레이션 분석</h3>
               <p className="text-xs text-gray-500 truncate">{weekLabel} · {selectedFolder}</p>
             </div>

@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { ThumbsUp, X, Lightbulb } from 'lucide-react'
+import { ThumbsUp, X, Lightbulb, Pencil, Check } from 'lucide-react'
 import { generateUUID } from '../utils/formatters'
 import { putRecord, removeRecord } from '../utils/cloudStore'
 import { isAdminMode } from '../utils/admin'
 
 export default function WeekInsights({ week, insights, setInsights, author }) {
   const [newInsight, setNewInsight] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [editText, setEditText] = useState('')
 
   const weekInsights = insights
     .filter(i => i.week === week)
@@ -41,6 +43,26 @@ export default function WeekInsights({ week, insights, setInsights, author }) {
     removeRecord('insight', id).catch(e => console.error('인사이트 삭제 실패', e))
   }
 
+  const handleStartEdit = (insight) => {
+    setEditingId(insight.id)
+    setEditText(insight.content)
+  }
+
+  const handleSaveEdit = (id) => {
+    const text = editText.trim()
+    if (!text) {
+      setEditingId(null)
+      return
+    }
+    const target = insights.find(i => i.id === id)
+    if (!target) return
+    const updated = { ...target, content: text }
+    setInsights(insights.map(i => i.id === id ? updated : i))
+    setEditingId(null)
+    putRecord('insight', updated, { author: updated.author, week: updated.week })
+      .catch(e => console.error('인사이트 수정 실패', e))
+  }
+
   return (
     <div className="bg-surface-alt rounded-2xl p-4 space-y-3">
       <div>
@@ -69,34 +91,75 @@ export default function WeekInsights({ week, insights, setInsights, author }) {
       </div>
 
       <div className="space-y-2">
-        {weekInsights.map((insight) => (
+        {weekInsights.map((insight) => {
+          const canEdit = insight.author === author || isAdminMode()
+          const isEditing = editingId === insight.id
+          return (
           <div
             key={insight.id}
             className="flex items-center justify-between gap-3 p-3 bg-surface rounded-xl"
           >
-            <div className="min-w-0">
-              <p className="text-sm text-gray-100">{insight.content}</p>
-              <p className="text-xs text-gray-500">{insight.author}</p>
-            </div>
+            {isEditing ? (
+              <input
+                type="text"
+                autoFocus
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveEdit(insight.id)
+                  if (e.key === 'Escape') setEditingId(null)
+                }}
+                onBlur={() => handleSaveEdit(insight.id)}
+                className="flex-1 min-w-0 p-1.5 bg-surface-alt border border-brand rounded-lg text-sm focus:outline-none"
+              />
+            ) : (
+              <div className="min-w-0">
+                <p className="text-sm text-gray-100">{insight.content}</p>
+                <p className="text-xs text-gray-500">{insight.author}</p>
+              </div>
+            )}
             <div className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={() => handleVote(insight.id)}
-                className="flex items-center gap-1 text-xs font-bold text-brand bg-surface-alt border border-white/10 px-2 py-1 rounded-lg"
-              >
-                <ThumbsUp size={12} />
-                {insight.votes}
-              </button>
-              {(insight.author === author || isAdminMode()) && (
+              {isEditing ? (
                 <button
-                  onClick={() => handleDelete(insight.id)}
-                  className="text-gray-600 hover:text-red-500 px-1"
+                  onClick={() => handleSaveEdit(insight.id)}
+                  className="text-emerald-400 hover:text-emerald-300 px-1"
+                  title="저장"
                 >
-                  <X size={14} />
+                  <Check size={16} />
                 </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => handleVote(insight.id)}
+                    className="flex items-center gap-1 text-xs font-bold text-brand bg-surface-alt border border-white/10 px-2 py-1 rounded-lg"
+                  >
+                    <ThumbsUp size={12} />
+                    {insight.votes}
+                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => handleStartEdit(insight)}
+                      className="text-gray-600 hover:text-brand px-1"
+                      title="수정"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button
+                      onClick={() => handleDelete(insight.id)}
+                      className="text-gray-600 hover:text-red-500 px-1"
+                      title="삭제"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
-        ))}
+          )
+        })}
         {weekInsights.length === 0 && (
           <p className="text-sm text-gray-500 text-center py-3">아직 등록된 인사이트가 없어요</p>
         )}
