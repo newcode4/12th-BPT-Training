@@ -123,8 +123,15 @@ textarea::placeholder {
   100% { opacity: 0; transform: translate3d(0, -220px, 0) scale(1.05); }
 }
 
+/* 응원 버튼을 누르면 주변에서 작은 색종이 조각이 랜덤 방향으로 튀어나가며 사라진다 */
+@keyframes confetti-burst {
+  0%   { opacity: 1; transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  100% { opacity: 0; transform: translate3d(var(--dx), var(--dy), 0) rotate(var(--rot)) scale(0.5); }
+}
+
 @layer utilities {
   .anim-float-up { animation: float-up 2.6s ease-out forwards; }
+  .anim-confetti { animation: confetti-burst 850ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
   .anim-rise { animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
   .anim-pop { animation: pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
   .anim-fade { animation: fade-in 0.3s ease-out both; }

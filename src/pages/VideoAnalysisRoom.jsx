@@ -388,13 +388,20 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   }
 
   // 이름(제목)이나 시작 시간처럼, 통째로 덮어써도 되는 필드를 저장한다
+  // 함수형 업데이트를 써야 한다 — 순서 바꾸기처럼 한 클릭에서 onUpdateMeta를 연달아
+  // 두 번 호출하는 경우, 일반 setState는 둘 다 같은(오래된) analyses를 기준으로 계산해서
+  // 뒤에 호출한 쪽만 반영되고 앞의 변경이 통째로 사라지는 레이스가 생긴다.
   const persistMySimUpdate = (id, patch) => {
-    const target = analyses.find(a => a.id === id)
-    if (!target) return
-    const updated = { ...target, ...patch }
-    setAnalyses(analyses.map(a => a.id === id ? updated : a))
-    putRecord('analysis', updated, { author: updated.author || author, week: updated.week })
-      .catch(e => console.error('시뮬레이션 저장 실패', e))
+    let updated = null
+    setAnalyses((prev) => prev.map((a) => {
+      if (a.id !== id) return a
+      updated = { ...a, ...patch }
+      return updated
+    }))
+    if (updated) {
+      putRecord('analysis', updated, { author: updated.author || author, week: updated.week })
+        .catch(e => console.error('시뮬레이션 저장 실패', e))
+    }
   }
 
   const analysisDisplayName = (analysis) =>

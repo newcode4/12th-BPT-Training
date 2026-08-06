@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, ChevronDown, ChevronLeft, ChevronRight, Trash2, Pencil, Check, X, Clock, Play, CalendarDays } from 'lucide-react'
+import { Plus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Trash2, Pencil, Check, X, Clock, Play, CalendarDays } from 'lucide-react'
 import { loadYouTubeAPI, parseYouTubeUrl } from '../utils/youtube'
 import { hmsToSeconds, secondsToHMS, generateUUID } from '../utils/formatters'
 import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
@@ -274,6 +274,7 @@ function SimulationCard({
   index, analysis, expanded, onToggle,
   onUpdateMeta, onDelete, author,
   hasPrev, hasNext, onPrev, onNext,
+  canMoveUp, canMoveDown, onMoveUp, onMoveDown,
 }) {
   const canPlayInline = analysis.source === 'youtube'
 
@@ -289,14 +290,39 @@ function SimulationCard({
         className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-white/[0.02] transition cursor-pointer"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <span className="shrink-0 w-8 h-8 rounded-full bg-brand-light text-brand font-extrabold text-sm flex items-center justify-center">
-            {index}
-          </span>
+          {/* 순서를 직접 바꿀 수 있게, 번호 위/아래에 작은 이동 버튼을 둔다 */}
+          <div className="shrink-0 flex flex-col items-center gap-0.5">
+            <button
+              onClick={(e) => { e.stopPropagation(); onMoveUp() }}
+              disabled={!canMoveUp}
+              title="위로 이동"
+              className="w-6 h-4 flex items-center justify-center text-gray-600 hover:text-brand disabled:opacity-0 disabled:pointer-events-none transition"
+            >
+              <ChevronUp size={14} />
+            </button>
+            <span className="w-8 h-8 rounded-full bg-brand-light text-brand font-extrabold text-sm flex items-center justify-center">
+              {index}
+            </span>
+            <button
+              onClick={(e) => { e.stopPropagation(); onMoveDown() }}
+              disabled={!canMoveDown}
+              title="아래로 이동"
+              className="w-6 h-4 flex items-center justify-center text-gray-600 hover:text-brand disabled:opacity-0 disabled:pointer-events-none transition"
+            >
+              <ChevronDown size={14} />
+            </button>
+          </div>
           <div className="min-w-0">
             <TitleEditor analysis={analysis} onUpdateMeta={onUpdateMeta} />
-            <p className="text-xs text-gray-500 truncate">
-              {index}번째 시뮬레이션 · {weekLabelOf(analysis.week)} · {new Date(analysis.uploadedAt).toLocaleString('ko-KR')}
-            </p>
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              {/* 몇 주차인지 한눈에 보이도록 색이 있는 배지로 강조 */}
+              <span className="inline-flex items-center text-[11px] font-extrabold text-brand bg-brand-light px-2 py-0.5 rounded-full whitespace-nowrap">
+                {weekLabelOf(analysis.week)}
+              </span>
+              <span className="text-xs text-gray-500 truncate">
+                {new Date(analysis.uploadedAt).toLocaleString('ko-KR')}
+              </span>
+            </div>
           </div>
         </div>
         {/* 그냥 화살표만 있으면 "누르면 재생된다"는 게 잘 안 와닿아서, 접혀 있을 땐
@@ -324,32 +350,34 @@ function SimulationCard({
 
           <FeedbackSection analysis={analysis} author={author} />
 
-          <div className="flex items-center justify-between pt-1 border-t border-white/5">
-            <button
-              onClick={() => onDelete(analysis.id)}
-              className="flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-red-500"
-            >
-              <Trash2 size={12} />
-              삭제
-            </button>
-            <div className="flex items-center gap-1.5">
+          {/* 다음 영상으로 넘어가는 게 이 카드의 핵심 동선이라, 크고 글자가 있는 버튼으로
+              둔다 — 특히 "다음 시뮬레이션"은 브랜드색으로 눈에 띄게 해서 자연스럽게 이어보게 유도 */}
+          <div className="pt-2 border-t border-white/5 space-y-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={onPrev}
                 disabled={!hasPrev}
-                className="p-1.5 rounded-lg bg-surface-alt text-gray-400 disabled:opacity-30 hover:bg-white/10 transition"
-                title="이전 시뮬레이션"
+                className="flex items-center justify-center gap-1 py-2.5 rounded-xl text-sm font-bold bg-surface-alt text-gray-300 disabled:opacity-30 disabled:pointer-events-none hover:bg-white/10 transition"
               >
                 <ChevronLeft size={16} />
+                이전 시뮬레이션
               </button>
               <button
                 onClick={onNext}
                 disabled={!hasNext}
-                className="p-1.5 rounded-lg bg-surface-alt text-gray-400 disabled:opacity-30 hover:bg-white/10 transition"
-                title="다음 시뮬레이션"
+                className="flex items-center justify-center gap-1 py-2.5 rounded-xl text-sm font-bold bg-brand hover:bg-brand-dark text-white disabled:opacity-40 disabled:bg-surface-alt disabled:text-gray-500 disabled:pointer-events-none transition"
               >
+                다음 시뮬레이션
                 <ChevronRight size={16} />
               </button>
             </div>
+            <button
+              onClick={() => onDelete(analysis.id)}
+              className="w-full flex items-center justify-center gap-1 text-xs font-bold text-gray-500 hover:text-red-500 py-1"
+            >
+              <Trash2 size={12} />
+              삭제
+            </button>
           </div>
         </div>
       )}
@@ -361,7 +389,6 @@ function SimulationCard({
 // 링크만 붙여넣으면 바로 등록되고, 클릭하면 그 자리에서 펼쳐져 재생 + 피드백 작성까지 끝낼 수 있다.
 export default function MySimulationsOverview({ analyses, author, onAddLink, onUpdateMeta, onDelete, hideAddForm = false }) {
   const [linkInput, setLinkInput] = useState('')
-  const [addHmsOpen, setAddHmsOpen] = useState(false)
   const [addHms, setAddHms] = useState({ hours: 0, minutes: 0, seconds: 0 })
   const [expandedId, setExpandedId] = useState(null)
   const [adding, setAdding] = useState(false)
@@ -382,8 +409,18 @@ export default function MySimulationsOverview({ analyses, author, onAddLink, onU
     setAdding(false)
     setLinkInput('')
     setAddHms({ hours: 0, minutes: 0, seconds: 0 })
-    setAddHmsOpen(false)
     if (created) setExpandedId(created.id)
+  }
+
+  // uploadedAt만이 정렬 기준이라, 순서를 바꾸려면 인접한 두 항목의 uploadedAt을 맞바꾼다
+  const moveItem = (id, direction) => {
+    const idx = sorted.findIndex((a) => a.id === id)
+    const swapIdx = idx + direction
+    if (idx < 0 || swapIdx < 0 || swapIdx >= sorted.length) return
+    const a = sorted[idx]
+    const b = sorted[swapIdx]
+    onUpdateMeta(a.id, { uploadedAt: b.uploadedAt })
+    onUpdateMeta(b.id, { uploadedAt: a.uploadedAt })
   }
 
   return (
@@ -408,24 +445,15 @@ export default function MySimulationsOverview({ analyses, author, onAddLink, onU
             추가
           </button>
         </div>
-        <button
-          onClick={() => setAddHmsOpen((o) => !o)}
-          className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-brand"
-        >
-          <Clock size={12} />
-          {addHmsOpen ? '시작 시간 접기' : '시작 시간 설정 (선택)'}
-        </button>
-        {addHmsOpen && (
-          <div className="p-3 bg-surface-alt rounded-xl">
-            <TimeHMSInput
-              hours={addHms.hours}
-              minutes={addHms.minutes}
-              seconds={addHms.seconds}
-              onChange={setAddHms}
-              label="이 지점부터 재생"
-            />
-          </div>
-        )}
+        <div className="p-3 bg-surface-alt rounded-xl">
+          <TimeHMSInput
+            hours={addHms.hours}
+            minutes={addHms.minutes}
+            seconds={addHms.seconds}
+            onChange={setAddHms}
+            label="이 지점부터 재생 (선택)"
+          />
+        </div>
       </div>
       )}
 
@@ -447,6 +475,10 @@ export default function MySimulationsOverview({ analyses, author, onAddLink, onU
             hasNext={expandedId === a.id && expandedIndex < sorted.length - 1}
             onPrev={() => setExpandedId(sorted[expandedIndex - 1]?.id ?? null)}
             onNext={() => setExpandedId(sorted[expandedIndex + 1]?.id ?? null)}
+            canMoveUp={i > 0}
+            canMoveDown={i < sorted.length - 1}
+            onMoveUp={() => moveItem(a.id, -1)}
+            onMoveDown={() => moveItem(a.id, 1)}
           />
         ))}
         {sorted.length === 0 && (

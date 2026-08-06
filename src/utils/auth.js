@@ -114,6 +114,9 @@ export async function login(name) {
   if (error) return { ok: false, error: error.message }
 
   setSession({ name, token, sessionId: data.id })
+  // sessions는 로그아웃하면 지워지는 "지금 접속 중"용 테이블이라 로그인 횟수/출석 기록이 안 남는다.
+  // 관리자 통계용으로 로그인마다 하나씩 쌓이는 별도 로그를 남긴다 (지우지 않음).
+  putRecord('login_event', { id: crypto.randomUUID(), name, at: nowIso }).catch(() => {})
   return { ok: true }
 }
 

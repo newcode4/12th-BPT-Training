@@ -7,20 +7,42 @@ const TOAST_DURATION_MS = 6000
 const CHEER_LIFETIME_MS = 2600
 const CHEER_COOLDOWN_MS = 1500 // 너무 연타하면 스팸이라 살짝 텀을 둔다
 
-const CHEER_MESSAGES = ['화이팅!', '12기짱!', '할 수 있다!!', '레전드 12기 🔥', '오늘도 화이팅💪', '가보자고!']
+const CHEER_MESSAGES = [
+  '화이팅!', '12기짱!', '할 수 있다!!', '레전드 12기 🔥', '오늘도 화이팅💪', '가보자고!',
+  '최고예요!', '멋져요✨', '잘하고 있어요', '이 악물고 GO', '오늘도 성장 중', '박수👏👏',
+  '기세 살아있다', '끝까지 가보자', '우리가 최강', '한 걸음 더!', '완전 잘함', '역시 12기',
+]
+
+const CONFETTI_COLORS = ['#E5253A', '#FF9A3D', '#FFD166', '#4DD0E1', '#9575CD', '#81C784']
+const CONFETTI_COUNT = 14
 
 function randomKey() {
   return Math.random().toString(36).slice(2)
 }
 
+function makeConfettiBurst() {
+  return Array.from({ length: CONFETTI_COUNT }, (_, i) => {
+    const angle = Math.random() * Math.PI * 2
+    const distance = 40 + Math.random() * 60
+    return {
+      id: `${Date.now()}-${i}`,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      dx: Math.cos(angle) * distance,
+      dy: Math.sin(angle) * distance - 30, // 살짝 위쪽으로 편향되게
+      rot: Math.random() * 360 - 180,
+    }
+  })
+}
+
 // 접속자 수는 Supabase Realtime Presence로 진짜 실시간으로 잡는다 (DB 폴링이 아니라
 // 소켓 연결 자체가 곧 "지금 접속 중"이라는 신호). 응원 버튼은 같은 채널에 브로드캐스트로
 // 보내서, 나를 포함한 지금 접속한 모두의 화면에 동시에 리액션이 떠오른다.
-export default function CommunityPulse({ author }) {
+export default function CommunityPulse({ author, raised = false }) {
   const [onlineCount, setOnlineCount] = useState(0)
   const [toastVisible, setToastVisible] = useState(false)
   const [toastClosing, setToastClosing] = useState(false)
   const [cheers, setCheers] = useState([])
+  const [confetti, setConfetti] = useState([])
   const channelRef = useRef(null)
   const toastTimerRef = useRef(null)
   const lastCountRef = useRef(0)
@@ -88,6 +110,13 @@ export default function CommunityPulse({ author }) {
     lastCheerAtRef.current = now
     const text = CHEER_MESSAGES[Math.floor(Math.random() * CHEER_MESSAGES.length)]
     channelRef.current?.send({ type: 'broadcast', event: 'cheer', payload: { text, author } })
+    // 축포는 브로드캐스트 없이 누른 사람 화면에서만 작게 터뜨린다 (모두에게 쏘면 정신없어서)
+    const burstId = randomKey()
+    const particles = makeConfettiBurst()
+    setConfetti((prev) => [...prev, { id: burstId, particles }])
+    setTimeout(() => {
+      setConfetti((prev) => prev.filter((b) => b.id !== burstId))
+    }, 900)
   }
 
   if (!supabaseConfigured) return null
@@ -123,15 +152,41 @@ export default function CommunityPulse({ author }) {
         ))}
       </div>
 
-      {/* 응원 보내기 버튼 — 재미 요소, 시뮬레이터 바로가기와 겹치지 않게 반대편(왼쪽)에 둔다 */}
-      <button
-        onClick={sendCheer}
-        title="응원 보내기"
-        className="shine anim-pop fixed bottom-20 md:bottom-24 left-4 md:left-8 z-20 flex items-center justify-center gap-1.5 bg-surface/95 backdrop-blur border border-brand/40 hover:border-brand hover:bg-brand text-brand hover:text-white font-bold w-12 h-12 md:w-auto md:h-auto md:pl-3.5 md:pr-4 md:py-2.5 rounded-full shadow-floating transition-all duration-300 hover:scale-105 active:scale-95"
+      {/* 응원 보내기 버튼 — 시뮬레이터 바로가기 바로 위에 쌓아서, 같은 자리에서 이어지는 액션처럼 보이게 */}
+      <div
+        className={`fixed ${raised ? 'bottom-56' : 'bottom-36'} md:bottom-40 right-4 md:right-8 z-20`}
       >
-        <PartyPopper size={16} className="shrink-0" />
-        <span className="hidden md:inline text-xs whitespace-nowrap">응원 보내기</span>
-      </button>
+        <button
+          onClick={sendCheer}
+          title="응원 보내기"
+          className="shine anim-pop relative flex items-center justify-center gap-1.5 bg-surface/95 backdrop-blur border border-brand/40 hover:border-brand hover:bg-brand text-brand hover:text-white font-bold w-12 h-12 md:w-auto md:h-auto md:pl-3.5 md:pr-4 md:py-2.5 rounded-full shadow-floating transition-all duration-300 hover:scale-105 active:scale-95"
+        >
+          <PartyPopper size={16} className="shrink-0" />
+          <span className="hidden md:inline text-xs whitespace-nowrap">응원 보내기</span>
+
+          {/* 축포 — 버튼 중앙에서 작은 색종이 조각들이 터져 나간다 */}
+          {confetti.map((burst) => (
+            <span key={burst.id} className="absolute inset-0 pointer-events-none">
+              {burst.particles.map((p) => (
+                <span
+                  key={p.id}
+                  className="anim-confetti absolute top-1/2 left-1/2 rounded-sm"
+                  style={{
+                    width: 5,
+                    height: 5,
+                    marginTop: -2.5,
+                    marginLeft: -2.5,
+                    backgroundColor: p.color,
+                    '--dx': `${p.dx}px`,
+                    '--dy': `${p.dy}px`,
+                    '--rot': `${p.rot}deg`,
+                  }}
+                />
+              ))}
+            </span>
+          ))}
+        </button>
+      </div>
     </>
   )
 }

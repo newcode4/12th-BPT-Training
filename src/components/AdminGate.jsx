@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { ShieldCheck, X, Smartphone } from 'lucide-react'
+import { ShieldCheck, X, Smartphone, BarChart3 } from 'lucide-react'
 import { isAdminMode, tryEnableAdminMode, disableAdminMode } from '../utils/admin'
 import { getDeviceLimit, setDeviceLimit, DEFAULT_DEVICE_LIMIT } from '../utils/auth'
+import AdminDashboard from './AdminDashboard'
 
 function DeviceLimitControl() {
   const [limit, setLimit] = useState(DEFAULT_DEVICE_LIMIT)
@@ -46,6 +47,7 @@ function DeviceLimitControl() {
 export default function AdminGate() {
   const [admin, setAdmin] = useState(isAdminMode())
   const [showPrompt, setShowPrompt] = useState(false)
+  const [showDashboard, setShowDashboard] = useState(false)
   const [pin, setPin] = useState('')
 
   const handleSubmit = () => {
@@ -65,16 +67,26 @@ export default function AdminGate() {
 
   if (admin) {
     return (
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <button
-          onClick={handleDisable}
-          className="inline-flex items-center gap-1 text-[11px] font-bold text-brand hover:text-brand-dark"
-        >
-          <ShieldCheck size={12} />
-          관리자 모드 켜짐 (끄기)
-        </button>
-        <DeviceLimitControl />
-      </div>
+      <>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <button
+            onClick={handleDisable}
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-brand hover:text-brand-dark"
+          >
+            <ShieldCheck size={12} />
+            관리자 모드 켜짐 (끄기)
+          </button>
+          <DeviceLimitControl />
+          <button
+            onClick={() => setShowDashboard(true)}
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-400 bg-surface-alt px-2.5 py-1.5 rounded-full hover:text-brand"
+          >
+            <BarChart3 size={12} />
+            학생 활동 대시보드
+          </button>
+        </div>
+        {showDashboard && <AdminDashboard onClose={() => setShowDashboard(false)} />}
+      </>
     )
   }
 

@@ -114,7 +114,7 @@ export default function App() {
         author={author}
         onGoToPractice={() => { setCurrentPage('practice'); setPracticeInitialFilter('unwritten') }}
       />
-      <CommunityPulse author={author} />
+      <CommunityPulse author={author} raised={currentPage === 'qa'} />
 
       {showProfile && (
         <ProfileModal
