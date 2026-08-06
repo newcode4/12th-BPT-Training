@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Users, LogIn, CalendarCheck2, MessageSquareText, Circle, Zap } from 'lucide-react'
+import { X, Users, LogIn, CalendarCheck2, MessageSquareText, Circle, Zap, Bookmark } from 'lucide-react'
 import { supabase } from '../utils/supabase'
 import { listRecords } from '../utils/cloudStore'
 import { ROSTER } from '../utils/auth'
@@ -23,11 +23,12 @@ export default function AdminDashboard({ onClose }) {
     async function load() {
       try {
         const staleBefore = new Date(Date.now() - STALE_MS).toISOString()
-        const [loginEvents, sessionsRes, answersRes, questionsRes] = await Promise.all([
+        const [loginEvents, sessionsRes, answersRes, questionsRes, analysisRecords] = await Promise.all([
           listRecords('login_event'),
           supabase.from('sessions').select('name, last_seen').gte('last_seen', staleBefore),
           supabase.from('answers').select('author'),
           supabase.from('questions').select('author, category').eq('category', 'unexpected'),
+          listRecords('analysis'),
         ])
         if (cancelled) return
 
@@ -54,6 +55,14 @@ export default function AdminDashboard({ onClose }) {
           unexpectedCountByName[q.author] = (unexpectedCountByName[q.author] || 0) + 1
         }
 
+        // 스크랩은 시뮬레이션(analysis) 레코드 안에 배열로 들어있어서, 학생별로 다 더한다 —
+        // 영상만 걸어두고 실제로는 스크랩(복습 메모)을 안 남기는 학생을 가려낼 수 있다
+        const scrapCountByName = {}
+        for (const a of analysisRecords) {
+          if (!a.author) continue
+          scrapCountByName[a.author] = (scrapCountByName[a.author] || 0) + (a.scraps?.length || 0)
+        }
+
         const built = ROSTER.map((name) => ({
           name,
           online: onlineNames.has(name),
@@ -61,6 +70,7 @@ export default function AdminDashboard({ onClose }) {
           attendanceDays: attendanceDaysByName[name]?.size || 0,
           commentCount: commentCountByName[name] || 0,
           unexpectedCount: unexpectedCountByName[name] || 0,
+          scrapCount: scrapCountByName[name] || 0,
         })).sort((a, b) => {
           if (a.online !== b.online) return a.online ? -1 : 1
           return b.loginCount - a.loginCount
@@ -101,18 +111,19 @@ export default function AdminDashboard({ onClose }) {
 
           {!loading && !error && (
             <div className="space-y-1.5">
-              <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-3 px-3 text-[11px] font-bold text-gray-500">
+              <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-3 px-3 text-[11px] font-bold text-gray-500">
                 <span>이름</span>
                 <span className="w-16 text-center">접속</span>
                 <span className="w-20 text-center flex items-center justify-center gap-1"><LogIn size={11} />로그인</span>
                 <span className="w-20 text-center flex items-center justify-center gap-1"><CalendarCheck2 size={11} />출석일</span>
                 <span className="w-20 text-center flex items-center justify-center gap-1"><MessageSquareText size={11} />댓글</span>
                 <span className="w-20 text-center flex items-center justify-center gap-1"><Zap size={11} />돌발질문</span>
+                <span className="w-20 text-center flex items-center justify-center gap-1"><Bookmark size={11} />스크랩</span>
               </div>
               {rows.map((r) => (
                 <div
                   key={r.name}
-                  className="grid grid-cols-2 md:grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2 md:gap-3 items-center bg-surface-alt rounded-xl px-3 py-2.5"
+                  className="grid grid-cols-2 md:grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-2 md:gap-3 items-center bg-surface-alt rounded-xl px-3 py-2.5"
                 >
                   <span className="font-bold text-sm flex items-center gap-1.5 truncate">
                     {r.online && <Circle size={7} className="fill-emerald-400 text-emerald-400 shrink-0" />}
@@ -125,6 +136,7 @@ export default function AdminDashboard({ onClose }) {
                   <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.attendanceDays}일</span>
                   <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.commentCount}개</span>
                   <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.unexpectedCount}개</span>
+                  <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.scrapCount}개</span>
                 </div>
               ))}
             </div>

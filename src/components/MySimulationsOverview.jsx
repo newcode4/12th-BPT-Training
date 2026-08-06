@@ -413,15 +413,25 @@ export default function MySimulationsOverview({ analyses, author, onAddLink, onU
     if (created) setExpandedId(created.id)
   }
 
-  // uploadedAt만이 정렬 기준이라, 순서를 바꾸려면 인접한 두 항목의 uploadedAt을 맞바꾼다
-  const moveItem = (id, direction) => {
+  // uploadedAt만이 정렬 기준이라, 순서를 바꾸려면 인접한 두 항목의 uploadedAt을 맞바꾼다.
+  // 두 건을 동시에 저장하는데, 하나만 조용히 실패하면(네트워크 순단 등) 두 항목이
+  // 같은 시간으로 뒤엉켜버려서 — 반드시 결과를 기다렸다가 실패하면 원래대로 되돌린다.
+  const moveItem = async (id, direction) => {
     const idx = sorted.findIndex((a) => a.id === id)
     const swapIdx = idx + direction
     if (idx < 0 || swapIdx < 0 || swapIdx >= sorted.length) return
     const a = sorted[idx]
     const b = sorted[swapIdx]
-    onUpdateMeta(a.id, { uploadedAt: b.uploadedAt })
-    onUpdateMeta(b.id, { uploadedAt: a.uploadedAt })
+    try {
+      await Promise.all([
+        onUpdateMeta(a.id, { uploadedAt: b.uploadedAt }),
+        onUpdateMeta(b.id, { uploadedAt: a.uploadedAt }),
+      ])
+    } catch (e) {
+      alert('순서를 저장하지 못했어요. 다시 시도해주세요.')
+      onUpdateMeta(a.id, { uploadedAt: a.uploadedAt })
+      onUpdateMeta(b.id, { uploadedAt: b.uploadedAt })
+    }
   }
 
   return (

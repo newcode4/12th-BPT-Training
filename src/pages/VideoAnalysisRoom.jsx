@@ -62,6 +62,13 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
     listRecords('insight').then(setInsights).catch((e) => console.error('인사이트 불러오기 실패', e))
   }, [author])
 
+  // setState(updaterFn) 형태는 React가 fn을 "당장"이 아니라 렌더 단계에서 나중에 실행한다 —
+  // 그래서 순서 바꾸기처럼 한 틱 안에서 persistMySimUpdate를 두 번 연달아 부르면, 두 번째
+  // 호출이 setState 직후 곧바로 `updated` 값을 읽으려 해도 아직 null이라 저장이 통째로
+  // 씹힌다. analysesRef로 최신 배열을 동기적으로 직접 들고 있어야 이 레이스가 안 생긴다.
+  const analysesRef = useRef([])
+  useEffect(() => { analysesRef.current = analyses }, [analyses])
+
   useEffect(() => {
     let cancelled = false
     listRecords('admin_folder', { week: selectedWeek })
@@ -391,17 +398,17 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   // 함수형 업데이트를 써야 한다 — 순서 바꾸기처럼 한 클릭에서 onUpdateMeta를 연달아
   // 두 번 호출하는 경우, 일반 setState는 둘 다 같은(오래된) analyses를 기준으로 계산해서
   // 뒤에 호출한 쪽만 반영되고 앞의 변경이 통째로 사라지는 레이스가 생긴다.
+  // 호출한 쪽(특히 순서 바꾸기처럼 두 건을 한 번에 바꾸는 경우)이 저장 성공 여부를
+  // 알아야 실패를 감지하고 되돌릴 수 있어서, 프로미스를 그대로 반환한다.
+  // analysesRef를 직접 읽고 써서, 같은 틱에서 연달아 호출돼도 서로의 변경을 즉시 본다.
   const persistMySimUpdate = (id, patch) => {
-    let updated = null
-    setAnalyses((prev) => prev.map((a) => {
-      if (a.id !== id) return a
-      updated = { ...a, ...patch }
-      return updated
-    }))
-    if (updated) {
-      putRecord('analysis', updated, { author: updated.author || author, week: updated.week })
-        .catch(e => console.error('시뮬레이션 저장 실패', e))
-    }
+    const target = analysesRef.current.find(a => a.id === id)
+    if (!target) return Promise.resolve()
+    const updated = { ...target, ...patch }
+    analysesRef.current = analysesRef.current.map(a => a.id === id ? updated : a)
+    setAnalyses(analysesRef.current)
+    return putRecord('analysis', updated, { author: updated.author || author, week: updated.week })
+      .catch(e => { console.error('시뮬레이션 저장 실패', e); throw e })
   }
 
   const analysisDisplayName = (analysis) =>
