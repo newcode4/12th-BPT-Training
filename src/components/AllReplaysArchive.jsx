@@ -137,14 +137,21 @@ function AdminAddReplayForm({ viewFilter, onAdded }) {
   )
 }
 
-export default function AllReplaysArchive({ onAddToAnalysis }) {
+export default function AllReplaysArchive({ currentWeek, folders, onAddToAnalysis }) {
   const [open, setOpen] = useState(false)
   const [activeVideoId, setActiveVideoId] = useState(null)
   const [adminReplays, setAdminReplays] = useState([])
   const [weekFilter, setWeekFilter] = useState('all')
+  const [selectedAddFolder, setSelectedAddFolder] = useState('')
   const mountRef = useRef(null)
   const playerRef = useRef(null)
   const admin = isAdminMode()
+
+  useEffect(() => {
+    if (folders && folders.length > 0 && !folders.includes(selectedAddFolder)) {
+      setSelectedAddFolder(folders[0])
+    }
+  }, [folders, selectedAddFolder])
 
   useEffect(() => {
     listRecords('replay').then(setAdminReplays).catch(() => {})
@@ -156,7 +163,8 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
     (c) => !adminReplays.some((a) => a.date === c.date)
   )
   const allReplays = [...adminReplays.filter((r) => !r.deleted), ...curatedFiltered].sort((a, b) => b.date.localeCompare(a.date))
-  const replays = allReplays.filter((r) => matchesWeekFilter(weekFilter, r.week ?? '0'))
+  const effectiveWeek = currentWeek || weekFilter
+  const replays = allReplays.filter((r) => matchesWeekFilter(effectiveWeek, r.week ?? '0'))
   const activeReplay = replays.find((r) => r.videoId === activeVideoId) || allReplays.find((r) => r.videoId === activeVideoId)
 
   // 코드에 박아둔 큐레이션 회차는 DB 레코드가 없어서 그냥 지울 수가 없다.
@@ -236,21 +244,23 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
           )}
 
           {/* 주차 필터 */}
-          <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
-            {WEEK_FILTERS.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => handleSelectFilter(f.id)}
-                className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
-                  weekFilter === f.id
-                    ? 'bg-brand text-white'
-                    : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
+          {!currentWeek && (
+            <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
+              {WEEK_FILTERS.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => handleSelectFilter(f.id)}
+                  className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                    weekFilter === f.id
+                      ? 'bg-brand text-white'
+                      : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* 날짜 토글 필터 */}
           {admin ? (
@@ -320,13 +330,27 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
                 <div ref={mountRef} className="w-full h-full" />
               </div>
               {onAddToAnalysis && activeReplay && (
-                <button
-                  onClick={() => onAddToAnalysis(activeReplay)}
-                  className="w-full flex items-center justify-center gap-1.5 bg-brand-light hover:bg-red-500/20 text-brand font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
-                >
-                  <FolderPlus size={15} />
-                  이 회차 내 시뮬레이션 분석에 추가
-                </button>
+                <div className="space-y-2 bg-surface-alt p-3 rounded-xl border border-brand/20">
+                  <p className="text-xs font-bold text-gray-400">이 영상을 어느 세부 카테고리에 스크랩할까요?</p>
+                  {folders && folders.length > 0 && (
+                    <select
+                      value={selectedAddFolder}
+                      onChange={(e) => setSelectedAddFolder(e.target.value)}
+                      className="w-full p-2.5 bg-surface border border-white/10 rounded-xl text-sm font-bold focus:outline-none focus:border-brand"
+                    >
+                      {folders.map(f => (
+                        <option key={f} value={f}>{f}</option>
+                      ))}
+                    </select>
+                  )}
+                  <button
+                    onClick={() => onAddToAnalysis(activeReplay, selectedAddFolder || folders?.[0] || '기본')}
+                    className="w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
+                  >
+                    <FolderPlus size={15} />
+                    스크랩하기
+                  </button>
+                </div>
               )}
             </div>
           ) : replays.length > 0 && (

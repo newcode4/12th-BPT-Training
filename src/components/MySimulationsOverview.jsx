@@ -154,24 +154,20 @@ function WeekEditor({ analysis, onUpdateMeta }) {
   )
 }
 
-const FEEDBACK_CATEGORIES = [
-  { id: 'self', label: '셀프 피드백' },
-  { id: 'presentation', label: '발표 후 받은 피드백' },
+const SCRAP_MEMO_CATEGORIES = [
+  { id: 'imitate', label: '따라하기 (벤치마킹)' },
+  { id: 'note', label: '참고 메모' },
 ]
 
-// "내 피드백"은 시뮬레이션 전용 저장소가 아니라, 인사이트&피드백 쪽 "피드백 모음"(WeekFeedback)과
-// 완전히 같은 'feedback' 레코드를 쓴다 — 여기서 쓴 게 피드백 모음에도 그대로 뜨고,
-// 거기서 지우면 여기서도 사라진다. week만 이 시뮬레이션의 week를 그대로 물려받고,
-// analysisId로 어느 시뮬레이션 것인지만 구분한다. 카테고리(셀프/발표 후 받은)도 그쪽과 똑같이 맞춘다.
-function FeedbackSection({ analysis, author }) {
+function ScrapMemoSection({ analysis, author }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
-  const [category, setCategory] = useState('self')
+  const [category, setCategory] = useState('imitate')
 
   useEffect(() => {
     let cancelled = false
-    listRecords('feedback', { week: analysis.week, author })
+    listRecords('scrap_memo', { week: analysis.week, author })
       .then((rows) => {
         if (cancelled) return
         setEntries(
@@ -181,7 +177,7 @@ function FeedbackSection({ analysis, author }) {
         )
         setLoading(false)
       })
-      .catch((e) => { console.error('피드백 불러오기 실패', e); setLoading(false) })
+      .catch((e) => { console.error('스크랩 메모 불러오기 실패', e); setLoading(false) })
     return () => { cancelled = true }
   }, [analysis.id, analysis.week, author])
 
@@ -198,22 +194,22 @@ function FeedbackSection({ analysis, author }) {
     }
     setEntries([entry, ...entries])
     setText('')
-    putRecord('feedback', entry, { author, week: analysis.week })
-      .catch((e) => console.error('피드백 저장 실패', e))
+    putRecord('scrap_memo', entry, { author, week: analysis.week })
+      .catch((e) => console.error('스크랩 메모 저장 실패', e))
   }
 
   const handleDelete = (id) => {
     setEntries(entries.filter((e) => e.id !== id))
-    removeRecord('feedback', id).catch((e) => console.error('피드백 삭제 실패', e))
+    removeRecord('scrap_memo', id).catch((e) => console.error('스크랩 메모 삭제 실패', e))
   }
 
   return (
     <div className="space-y-2">
       <p className="text-xs font-bold text-gray-400">
-        내 피드백 <span className="font-normal text-gray-500">(인사이트 & 피드백의 "피드백 모음"과 연동돼요)</span>
+        스크랩 메모 <span className="font-normal text-gray-500">(라이브 영상에서 따라하고 싶은 점 등을 별도로 기록해요)</span>
       </p>
       <div className="flex gap-2">
-        {FEEDBACK_CATEGORIES.map((c) => (
+        {SCRAP_MEMO_CATEGORIES.map((c) => (
           <button
             key={c.id}
             onClick={() => setCategory(c.id)}
@@ -233,7 +229,7 @@ function FeedbackSection({ analysis, author }) {
             // 그냥 Enter는 줄바꿈, Ctrl/Cmd+Enter는 바로 등록
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd()
           }}
-          placeholder="느낀 점, 개선할 점을 적어보세요 (여러 줄 입력 가능)"
+          placeholder="따라해보고 싶은 멘트나 제스처, 아이디어를 적어보세요 (여러 줄 입력 가능)"
           rows={3}
           className="w-full min-w-0 p-2.5 bg-surface-alt border border-white/10 rounded-xl text-sm resize-y focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
         />
@@ -247,14 +243,14 @@ function FeedbackSection({ analysis, author }) {
 
       {!loading && entries.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-xs font-bold text-gray-500">이전 피드백</p>
+          <p className="text-xs font-bold text-gray-500">스크랩 메모 기록</p>
           {entries.map((f) => (
             <div key={f.id} className="flex items-start justify-between gap-2 p-2.5 bg-surface-alt rounded-xl">
               <div className="min-w-0">
                 <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mb-1 ${
-                  f.category === 'presentation' ? 'bg-brand-light text-brand' : 'bg-white/10 text-gray-400'
+                  f.category === 'imitate' ? 'bg-brand-light text-brand' : 'bg-white/10 text-gray-400'
                 }`}>
-                  {FEEDBACK_CATEGORIES.find((c) => c.id === f.category)?.label || '셀프 피드백'}
+                  {SCRAP_MEMO_CATEGORIES.find((c) => c.id === f.category)?.label || '따라하기'}
                 </span>
                 <p className="text-sm text-gray-200 whitespace-pre-wrap">{f.text}</p>
                 <p className="text-[11px] text-gray-500 mt-0.5">{new Date(f.createdAt).toLocaleString('ko-KR')}</p>
@@ -351,7 +347,7 @@ function SimulationCard({
             </p>
           )}
 
-          <FeedbackSection analysis={analysis} author={author} />
+          <ScrapMemoSection analysis={analysis} author={author} />
 
           {/* 다음 영상으로 넘어가는 게 이 카드의 핵심 동선이라, 크고 글자가 있는 버튼으로
               둔다 — 특히 "다음 시뮬레이션"은 브랜드색으로 눈에 띄게 해서 자연스럽게 이어보게 유도 */}

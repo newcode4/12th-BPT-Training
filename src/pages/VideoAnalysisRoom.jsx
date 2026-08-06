@@ -349,11 +349,11 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   }
 
   // 전체 라이브 다시보기에서 "내 시뮬레이션 분석에 추가" — 유튜브 소스라 모아보기로 보낸다
-  const handleAddReplayToAnalysis = (replay) => {
+  const handleAddReplayToAnalysis = (replay, folderName) => {
     const analysis = {
       id: generateUUID(),
       week: selectedWeek,
-      folder: selectedFolder,
+      folder: folderName || selectedFolder,
       source: 'youtube',
       videoId: replay.videoId,
       startSeconds: 0,
@@ -648,7 +648,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
 
         {/* 예시 시뮬레이션 영상 (유튜브 스크랩) */}
         {!showAllMine && <WeekReferenceVideos week={selectedWeek} />}
-        {!showAllMine && <AllReplaysArchive onAddToAnalysis={handleAddReplayToAnalysis} />}
+        {!showAllMine && <AllReplaysArchive currentWeek={selectedWeek} folders={folders} onAddToAnalysis={handleAddReplayToAnalysis} />}
 
         {/* 내 시뮬레이션 모아보기 — 주차/폴더 안 가리고 내가 올린 걸 순서대로 모아보고,
             그 자리에서 바로 재생 + 피드백까지 끝낼 수 있게 한다 */}
