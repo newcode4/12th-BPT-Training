@@ -423,10 +423,14 @@ export default function QACommunity({ author, onLogout }) {
     if (sortBy === 'newest') {
       list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     } else {
+      // 아직 추천을 아무도 안 눌러서 좋아요 수가 다 0인 글이 많다 — 그러면 인기순이 최신순과
+      // 똑같아 보여서 "안 먹힌다"고 느껴진다. 좋아요가 같으면 답변 수, 그다음 최신순으로 더 갈라준다.
       list.sort((a, b) => {
         const aLikes = (a.answers || []).reduce((sum, ans) => sum + ans.likes, 0)
         const bLikes = (b.answers || []).reduce((sum, ans) => sum + ans.likes, 0)
-        return bLikes - aLikes
+        return (bLikes - aLikes)
+          || ((b.answers?.length || 0) - (a.answers?.length || 0))
+          || (new Date(b.createdAt) - new Date(a.createdAt))
       })
     }
     // 돌발질문만 볼 때는 아직 원고를 안 쓴 글을 위로 올린다 — 뭐부터 연습해야 할지
@@ -452,6 +456,13 @@ export default function QACommunity({ author, onLogout }) {
       ? (b.likes - a.likes) || (new Date(b.createdAt) - new Date(a.createdAt))
       : new Date(b.createdAt) - new Date(a.createdAt)
   ))
+
+  // 글쓰기에서 제목을 치는 동안 비슷한 기존 글을 바로 보여준다 —
+  // "검색해보고 없으면 진행"이 말뿐인 안내가 아니라 실제로 되는지 여기서 확인된다.
+  const titleQuery = newTitle.trim().toLowerCase()
+  const similarQuestions = titleQuery.length >= 2
+    ? questions.filter(q => q.id !== editingId && q.title.toLowerCase().includes(titleQuery)).slice(0, 5)
+    : []
 
   const categoryBadge = (category) => {
     const isUnexpected = category !== 'general'
@@ -798,6 +809,24 @@ export default function QACommunity({ author, onLogout }) {
                 autoFocus
                 className="w-full p-3.5 bg-surface-alt border border-white/10 rounded-xl text-base focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
               />
+              {similarQuestions.length > 0 && (
+                <div className="anim-pop mt-2 bg-surface-alt border border-amber-500/30 rounded-xl overflow-hidden">
+                  <p className="text-[11px] font-bold text-amber-400 px-3 pt-2.5">
+                    비슷한 글이 이미 있어요 — 눌러서 확인해보세요
+                  </p>
+                  <div className="divide-y divide-white/5">
+                    {similarQuestions.map((q) => (
+                      <button
+                        key={q.id}
+                        onClick={() => { resetWriteForm(); setSelectedQuestion(q); setView('detail') }}
+                        className="w-full text-left px-3 py-2.5 text-sm text-gray-300 hover:bg-white/5 transition truncate"
+                      >
+                        {q.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {showContentField ? (

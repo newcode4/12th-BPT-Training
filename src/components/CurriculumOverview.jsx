@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ListTree, Folder } from 'lucide-react'
+import { ChevronDown, ListTree } from 'lucide-react'
 import { WEEKS } from '../utils/weeks'
 import { WEEK_CURRICULUM } from '../utils/curriculum'
 
@@ -22,25 +22,27 @@ export default function CurriculumOverview({ onSelect }) {
         <ChevronDown size={18} className={`text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* 주차마다 카드를 따로 두면 옆줄과 비교하며 훑기 번거로워서, 한 주차 = 한 줄로
-          펼쳐서 라벨과 폴더가 나란히 한눈에 읽히게 한다 */}
+      {/* 주차마다 카드를 따로 두면 옆줄과 비교하며 훑기 번거로워서, 한 주차 = 한 줄로 펼친다.
+          "전체 녹음" 칩은 빼고 주차 이름 자체를 누르면 전체 녹음으로 가게 해서 줄을 줄였고,
+          그래도 폴더가 많은 주(3주차 등)는 줄바꿈 대신 가로 스크롤로 한 줄을 유지한다. */}
       {open && (
         <div className="p-4 md:p-6 pt-0 space-y-2">
           {WEEKS.map((w) => (
-            <div key={w.id} className="flex items-center flex-wrap gap-2 bg-surface-alt rounded-xl p-3">
-              <p className="shrink-0 text-sm font-extrabold text-gray-100 pr-1">{w.label} · {w.title}</p>
+            <div
+              key={w.id}
+              className="flex items-center flex-nowrap gap-2 overflow-x-auto scrollbar-none bg-surface-alt rounded-xl p-3"
+            >
               <button
                 onClick={() => onSelect(w.id, FULL_RECORDING_FOLDER)}
-                className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-brand-light text-brand hover:bg-red-500/20 transition"
+                className="shrink-0 text-sm font-extrabold text-gray-100 hover:text-brand pr-1 transition"
               >
-                <Folder size={11} />
-                {FULL_RECORDING_FOLDER}
+                {w.label} · {w.title}
               </button>
               {(WEEK_CURRICULUM[w.id] || []).map((folder) => (
                 <button
                   key={folder}
                   onClick={() => onSelect(w.id, folder)}
-                  className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-surface text-gray-300 hover:bg-white/10 transition"
+                  className="shrink-0 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-surface text-gray-300 hover:bg-white/10 transition"
                 >
                   {folder}
                 </button>

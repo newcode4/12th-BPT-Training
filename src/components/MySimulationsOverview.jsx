@@ -154,14 +154,20 @@ function WeekEditor({ analysis, onUpdateMeta }) {
   )
 }
 
-// "내 피드백"은 시뮬레이션 전용 저장소가 아니라, 인사이트&피드백 쪽 "피드백 모음"과
+const FEEDBACK_CATEGORIES = [
+  { id: 'self', label: '셀프 피드백' },
+  { id: 'presentation', label: '발표 후 받은 피드백' },
+]
+
+// "내 피드백"은 시뮬레이션 전용 저장소가 아니라, 인사이트&피드백 쪽 "피드백 모음"(WeekFeedback)과
 // 완전히 같은 'feedback' 레코드를 쓴다 — 여기서 쓴 게 피드백 모음에도 그대로 뜨고,
 // 거기서 지우면 여기서도 사라진다. week만 이 시뮬레이션의 week를 그대로 물려받고,
-// analysisId로 어느 시뮬레이션 것인지만 구분한다.
+// analysisId로 어느 시뮬레이션 것인지만 구분한다. 카테고리(셀프/발표 후 받은)도 그쪽과 똑같이 맞춘다.
 function FeedbackSection({ analysis, author }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
+  const [category, setCategory] = useState('self')
 
   useEffect(() => {
     let cancelled = false
@@ -184,7 +190,7 @@ function FeedbackSection({ analysis, author }) {
     const entry = {
       id: generateUUID(),
       week: analysis.week,
-      category: 'self',
+      category,
       analysisId: analysis.id,
       text: text.trim(),
       author,
@@ -206,6 +212,19 @@ function FeedbackSection({ analysis, author }) {
       <p className="text-xs font-bold text-gray-400">
         내 피드백 <span className="font-normal text-gray-500">(인사이트 & 피드백의 "피드백 모음"과 연동돼요)</span>
       </p>
+      <div className="flex gap-2">
+        {FEEDBACK_CATEGORIES.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => setCategory(c.id)}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold transition ${
+              category === c.id ? 'bg-brand text-white' : 'bg-surface text-gray-400 border border-white/10'
+            }`}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
       <div className="flex gap-2">
         <input
           type="text"
@@ -229,6 +248,11 @@ function FeedbackSection({ analysis, author }) {
           {entries.map((f) => (
             <div key={f.id} className="flex items-start justify-between gap-2 p-2.5 bg-surface-alt rounded-xl">
               <div className="min-w-0">
+                <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mb-1 ${
+                  f.category === 'presentation' ? 'bg-brand-light text-brand' : 'bg-white/10 text-gray-400'
+                }`}>
+                  {FEEDBACK_CATEGORIES.find((c) => c.id === f.category)?.label || '셀프 피드백'}
+                </span>
                 <p className="text-sm text-gray-200 whitespace-pre-wrap">{f.text}</p>
                 <p className="text-[11px] text-gray-500 mt-0.5">{new Date(f.createdAt).toLocaleString('ko-KR')}</p>
               </div>
