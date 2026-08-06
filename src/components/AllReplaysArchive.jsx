@@ -19,15 +19,13 @@ const WEEK_FILTERS = [
 const ADMIN_WEEK_OPTIONS = WEEK_FILTERS.filter((f) => f.id !== 'all')
 
 // 회차의 week는 관리자가 명시적으로 지정한 값('0'~'4' 또는 '0-3'/'0-4')이다.
-// '0~3주차 랜덤'/'0~4주차 랜덤'은 이름에 "랜덤"이 붙어있을 뿐 실제로는 다른 필터와 똑같이
-// 동작하는 하나의 카테고리다 (뽑기 기능이 아니다). 필터 [lo,hi] 범위 안에 회차의 범위가
-// 완전히 포함될 때만 그 필터에 노출한다.
-// 예) week='0-3'인 회차는 '0~3주차 랜덤'/'전체보기'에는 보이지만 단일 '3주차'에는 안 보인다.
+// '0~3주차 랜덤'/'0~4주차 랜덤'은 이름에 "랜덤"이 붙어있을 뿐 다른 필터와 똑같이 동작하는
+// 독립된 카테고리다 (뽑기 기능도 아니고, 0~4주차를 아우르는 범위 필터도 아니다).
+// 그래서 week 값이 필터 id와 정확히 같을 때만 노출한다 — '3주차'에 속한 회차가
+// '0~3주차 랜덤'에도 겹쳐 보이거나, 반대로 '0~4주차 랜덤'이 전체를 다 삼키는 일이 없게.
 function matchesWeekFilter(filterId, week) {
   if (filterId === 'all') return true
-  const [lo, hi] = filterId.includes('-') ? filterId.split('-').map(Number) : [Number(filterId), Number(filterId)]
-  const [elo, ehi] = String(week).includes('-') ? String(week).split('-').map(Number) : [Number(week), Number(week)]
-  return elo >= lo && ehi <= hi
+  return String(week ?? '0') === filterId
 }
 
 // 전체 라이브 다시보기 (날짜순 원본 아카이브) - YYMMDD, videoId, week(필터 소속)

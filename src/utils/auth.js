@@ -1,5 +1,6 @@
 import { supabase, supabaseConfigured } from './supabase'
 import { listRecords, putRecord } from './cloudStore'
+import { ADMIN_PIN, tryEnableAdminMode, disableAdminMode } from './admin'
 
 // 교육생 명단 (관리자에게 전달받은 목록과 동일하게 유지)
 export const ROSTER = [
@@ -9,6 +10,10 @@ export const ROSTER = [
   '이정현', '이정훈', '이주환', '이찬미', '이홍주', '이화범', '임정현', '전승훈', '정다희', '조영래',
   '주효민', '천진영', '추연영', '허준호', '황현문',
 ]
+
+// 명단에 없는 예약된 이름 — ROSTER에 안 들어있으니 WelcomeModal 드롭다운에는 절대 안 뜬다.
+// 관리자 PIN을 아는 사람만 이 계정으로 들어올 수 있고, 실제 학생 데이터와 절대 안 섞인다.
+export const ADMIN_ACCOUNT_NAME = '테스트관리자'
 
 const SESSION_KEY = 'pt-session'
 const STALE_MS = 5 * 60 * 1000 // 5분간 응답 없으면 끊긴 세션으로 간주하고 자리 회수
@@ -112,6 +117,34 @@ export async function login(name) {
   return { ok: true }
 }
 
+// 명단 로그인과 별도인 관리자 전용 경로. PIN을 아는 사람만 들어올 수 있고,
+// 자리 수 제한 없이 항상 로그인되며 관리자 모드도 같이 켜진다.
+export async function loginAsAdmin(pin) {
+  if (pin !== ADMIN_PIN) {
+    return { ok: false, error: 'PIN이 올바르지 않아요.' }
+  }
+  if (!supabaseConfigured) {
+    return { ok: false, error: '서버 연결이 설정되지 않았어요.' }
+  }
+
+  // 이전에 켜둔 채 남아있던 관리자 세션이 있으면 정리하고 새로 만든다
+  await supabase.from('sessions').delete().eq('name', ADMIN_ACCOUNT_NAME)
+
+  const token = crypto.randomUUID()
+  const nowIso = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('sessions')
+    .insert({ name: ADMIN_ACCOUNT_NAME, token, created_at: nowIso, last_seen: nowIso })
+    .select()
+    .single()
+
+  if (error) return { ok: false, error: error.message }
+
+  setSession({ name: ADMIN_ACCOUNT_NAME, token, sessionId: data.id })
+  tryEnableAdminMode(pin)
+  return { ok: true }
+}
+
 // 살아있는 세션인지 주기적으로 확인. 자리가 회수됐으면 false 반환.
 export async function heartbeat() {
   const session = getSession()
@@ -138,5 +171,6 @@ export async function logout() {
   if (session && supabaseConfigured) {
     await supabase.from('sessions').delete().eq('id', session.sessionId).eq('token', session.token)
   }
+  if (session?.name === ADMIN_ACCOUNT_NAME) disableAdminMode()
   clearSession()
 }
