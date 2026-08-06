@@ -60,10 +60,20 @@ function formatArchiveDate(yymmdd) {
   return `20${yy}.${mm}.${dd}`
 }
 
-function AdminAddReplayForm({ onAdded }) {
+// 지금 보고 있는 주차 필터를 그대로 추가 폼의 기본 소속 필터로 쓴다.
+// '전체보기'나 랜덤 범위를 보고 있을 땐 특정 주차로 단정할 수 없으니 '0'으로 되돌린다.
+function defaultWeekFrom(filterId) {
+  return ADMIN_WEEK_OPTIONS.some((f) => f.id === filterId) ? filterId : '0'
+}
+
+function AdminAddReplayForm({ viewFilter, onAdded }) {
   const [date, setDate] = useState(todayYYMMDD())
   const [url, setUrl] = useState('')
-  const [week, setWeek] = useState('0')
+  const [week, setWeek] = useState(() => defaultWeekFrom(viewFilter))
+
+  useEffect(() => {
+    setWeek(defaultWeekFrom(viewFilter))
+  }, [viewFilter])
 
   const handleAdd = async () => {
     const videoId = parseYouTubeUrl(url.trim())
@@ -214,7 +224,7 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
       {open && (
         <div className="p-4 md:p-6 pt-0 space-y-4">
           {admin && (
-            <AdminAddReplayForm onAdded={(r) => setAdminReplays([r, ...adminReplays])} />
+            <AdminAddReplayForm viewFilter={weekFilter} onAdded={(r) => setAdminReplays([r, ...adminReplays])} />
           )}
 
           {/* 주차 필터 */}

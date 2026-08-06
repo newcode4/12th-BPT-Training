@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import {
   MessageCircle, AlertTriangle, MessageSquare, Star, ThumbsUp, Mic, PenLine,
   PenSquare, ArrowLeft, Trash2, Loader2, CloudOff, Search, Check
@@ -563,14 +564,21 @@ export default function QACommunity({ author, onLogout }) {
             )}
           </div>
 
-          {/* 글쓰기 플로팅 버튼 */}
-          <button
-            onClick={() => setView('write')}
-            className="shine glow-breathe anim-pop fixed bottom-24 md:bottom-8 right-4 md:right-8 z-20 flex items-center gap-1.5 bg-brand hover:bg-brand-dark hover:scale-105 active:scale-95 text-white font-bold px-5 py-3.5 rounded-full shadow-floating transition-transform duration-300"
-          >
-            <PenSquare size={16} />
-            글쓰기
-          </button>
+          {/*
+            main에 걸린 anim-rise 등장 애니메이션이 transform을 만들어서, 이 버튼이 그 안에
+            있으면 position:fixed가 화면이 아니라 main 박스 기준으로 붙어버려 스크롤을 내려야만
+            보였다. body로 포탈해서 항상 화면에 바로 보이게 한다.
+          */}
+          {createPortal(
+            <button
+              onClick={() => setView('write')}
+              className="shine glow-breathe anim-pop fixed bottom-24 md:bottom-8 right-4 md:right-8 z-20 flex items-center gap-1.5 bg-brand hover:bg-brand-dark hover:scale-105 active:scale-95 text-white font-bold px-5 py-3.5 rounded-full shadow-floating transition-transform duration-300"
+            >
+              <PenSquare size={16} />
+              글쓰기
+            </button>,
+            document.body
+          )}
         </>
       )}
 

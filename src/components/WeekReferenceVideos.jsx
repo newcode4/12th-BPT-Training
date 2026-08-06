@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Bookmark, Trash2, PlayCircle, Plus, ShieldCheck } from 'lucide-react'
+import { Bookmark, Trash2, PlayCircle, Plus, ShieldCheck, ChevronDown } from 'lucide-react'
 import { parseHMSToSeconds, hmsToSeconds, formatTime, generateUUID } from '../utils/formatters'
 import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 import { loadYouTubeAPI, parseYouTubeUrl } from '../utils/youtube'
@@ -299,6 +299,7 @@ function AdminAddVideoForm({ week, onAdded }) {
 export default function WeekReferenceVideos({ week }) {
   const [adminVideos, setAdminVideos] = useState([])
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [open, setOpen] = useState(true)
   const admin = isAdminMode()
 
   useEffect(() => {
@@ -325,49 +326,59 @@ export default function WeekReferenceVideos({ week }) {
   const selected = videos[selectedIndex] || videos[0]
 
   return (
-    <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 space-y-4">
-      <h3 className="text-lg font-extrabold">예시 시뮬레이션 영상</h3>
+    <div className="bg-surface rounded-2xl shadow-card border border-white/10 overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between p-4 md:p-6"
+      >
+        <h3 className="text-lg font-extrabold">예시 시뮬레이션 영상</h3>
+        <ChevronDown size={18} className={`text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
 
-      {videos.length === 0 && (
-        <p className="text-sm text-gray-500">이번 주차는 아직 등록된 예시 영상이 없어요.</p>
-      )}
+      {open && (
+        <div className="p-4 md:p-6 pt-0 space-y-4">
+          {videos.length === 0 && (
+            <p className="text-sm text-gray-500">이번 주차는 아직 등록된 예시 영상이 없어요.</p>
+          )}
 
-      {videos.length > 1 && (
-        <div className="flex flex-wrap gap-2">
-          {videos.map((v, i) => (
-            <button
-              key={`${v.presenter}-${v.videoId}-${i}`}
-              onClick={() => setSelectedIndex(i)}
-              className={`px-3 py-1.5 rounded-xl text-sm font-bold transition ${
-                selectedIndex === i ? 'bg-brand text-white' : 'bg-surface-alt text-gray-400 hover:bg-white/10'
-              }`}
-            >
-              {v.presenter}
-            </button>
-          ))}
-        </div>
-      )}
+          {videos.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              {videos.map((v, i) => (
+                <button
+                  key={`${v.presenter}-${v.videoId}-${i}`}
+                  onClick={() => setSelectedIndex(i)}
+                  className={`px-3 py-1.5 rounded-xl text-sm font-bold transition ${
+                    selectedIndex === i ? 'bg-brand text-white' : 'bg-surface-alt text-gray-400 hover:bg-white/10'
+                  }`}
+                >
+                  {v.presenter}
+                </button>
+              ))}
+            </div>
+          )}
 
-      {selected && (
-        <div className="space-y-3">
-          <ReferenceVideoCard video={selected} />
-          {selected.id && admin && (
-            <button
-              onClick={() => handleDeleteAdminVideo(selected.id)}
-              className="flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-red-500"
-            >
-              <Trash2 size={12} />
-              이 영상 삭제 (관리자가 추가함)
-            </button>
+          {selected && (
+            <div className="space-y-3">
+              <ReferenceVideoCard video={selected} />
+              {selected.id && admin && (
+                <button
+                  onClick={() => handleDeleteAdminVideo(selected.id)}
+                  className="flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-red-500"
+                >
+                  <Trash2 size={12} />
+                  이 영상 삭제 (관리자가 추가함)
+                </button>
+              )}
+            </div>
+          )}
+
+          {admin && (
+            <AdminAddVideoForm
+              week={week}
+              onAdded={(video) => setAdminVideos([...adminVideos, video])}
+            />
           )}
         </div>
-      )}
-
-      {admin && (
-        <AdminAddVideoForm
-          week={week}
-          onAdded={(video) => setAdminVideos([...adminVideos, video])}
-        />
       )}
     </div>
   )
