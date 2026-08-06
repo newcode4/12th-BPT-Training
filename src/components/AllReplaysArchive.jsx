@@ -3,7 +3,8 @@ import { ChevronDown, PlayCircle, ShieldCheck, Plus, Trash2, FolderPlus, Bookmar
 import { loadYouTubeAPI, parseYouTubeUrl } from '../utils/youtube'
 import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 import { isAdminMode } from '../utils/admin'
-import { generateUUID, parseHMSToSeconds } from '../utils/formatters'
+import { generateUUID, parseHMSToSeconds, formatTime } from '../utils/formatters'
+import { WEEKS } from '../utils/weeks'
 
 const WEEK_FILTERS = [
   { id: 'all', label: '전체보기' },
@@ -127,12 +128,15 @@ function AdminAddReplayForm({ viewFilter, onAdded }) {
   )
 }
 
-// 스크랩 저장 폼: 시분초 + 제목 + 메모(선택)
-function ScrapForm({ replay, folders, selectedWeek, author, onSaved }) {
+// 스크랩 저장 폼: 지금 재생 중인 지점을 자동으로 시작 시분초로 잡고, 주차/카테고리만 확인해서 저장한다.
+// 시간을 손으로 입력하게 하면 사람마다 형식이 다르고 딴 데 정신 팔린 사이 시점이 밀려서 꼬이기 쉬워서,
+// "저장" 누르는 순간의 실제 재생 위치를 그대로 쓴다.
+function ScrapForm({ replay, folders, selectedWeek, author, getCurrentSeconds, onSaved }) {
   const [title, setTitle] = useState('')
-  const [timestamp, setTimestamp] = useState('')
   const [memo, setMemo] = useState('')
   const [folder, setFolder] = useState(folders?.[0] || '')
+  const [week, setWeek] = useState(selectedWeek || '0')
+  const [liveSeconds, setLiveSeconds] = useState(() => getCurrentSeconds?.() || 0)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -141,6 +145,19 @@ function ScrapForm({ replay, folders, selectedWeek, author, onSaved }) {
       setFolder(folders[0])
     }
   }, [folders])
+
+  useEffect(() => {
+    setWeek(selectedWeek || '0')
+  }, [selectedWeek])
+
+  // 폼이 떠있는 동안 지금 재생 위치를 계속 보여줘서, 저장 버튼을 누르는 순간의 지점이
+  // 뭔지 미리 확인할 수 있게 한다 (실제 저장값도 누르는 순간 다시 읽어서 정확히 맞춘다)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLiveSeconds(getCurrentSeconds?.() || 0)
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [getCurrentSeconds])
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -152,19 +169,18 @@ function ScrapForm({ replay, folders, selectedWeek, author, onSaved }) {
       id: generateUUID(),
       videoId: replay.videoId,
       replayDate: replay.date,
-      week: selectedWeek,
+      week,
       folder: folder || folders?.[0] || '전체 녹음',
       title: title.trim(),
-      timestamp: timestamp.trim(),
+      timestamp: formatTime(getCurrentSeconds?.() || 0),
       memo: memo.trim(),
       author,
       createdAt: new Date().toISOString(),
     }
     try {
-      await putRecord('live_scrap', scrap, { author, week: selectedWeek })
+      await putRecord('live_scrap', scrap, { author, week })
       setSaved(true)
       setTitle('')
-      setTimestamp('')
       setMemo('')
       onSaved?.(scrap)
       setTimeout(() => setSaved(false), 2000)
@@ -177,10 +193,33 @@ function ScrapForm({ replay, folders, selectedWeek, author, onSaved }) {
 
   return (
     <div className="space-y-2.5 bg-surface-alt p-3.5 rounded-xl border border-brand/20">
-      <p className="text-xs font-bold text-brand flex items-center gap-1.5">
-        <Bookmark size={13} />
-        이 영상 스크랩하기
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold text-brand flex items-center gap-1.5">
+          <Bookmark size={13} />
+          이 영상 스크랩하기
+        </p>
+        <span className="text-xs font-mono font-bold text-gray-300 bg-surface px-2 py-1 rounded-lg">
+          {formatTime(liveSeconds)} 지점
+        </span>
+      </div>
+
+      {/* 몇 주차 것인지 — 회차가 여러 주차에 걸쳐있을 수 있어서 저장할 때마다 확인한다 */}
+      <div>
+        <p className="text-[11px] text-gray-500 mb-1">몇 주차인가요?</p>
+        <div className="flex flex-wrap gap-1.5">
+          {WEEKS.map((w) => (
+            <button
+              key={w.id}
+              onClick={() => setWeek(w.id)}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                week === w.id ? 'bg-brand text-white' : 'bg-surface text-gray-400 hover:bg-white/10'
+              }`}
+            >
+              {w.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* 세부 카테고리 */}
       {folders && folders.length > 0 && (
@@ -197,18 +236,6 @@ function ScrapForm({ replay, folders, selectedWeek, author, onSaved }) {
           </select>
         </div>
       )}
-
-      {/* 시분초 입력 */}
-      <div>
-        <p className="text-[11px] text-gray-500 mb-1">시작 시분초 (예: 1:23:45)</p>
-        <input
-          type="text"
-          value={timestamp}
-          onChange={(e) => setTimestamp(e.target.value)}
-          placeholder="예: 5:39:22"
-          className="w-full p-2.5 bg-surface border border-white/10 rounded-xl text-sm font-mono focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-        />
-      </div>
 
       {/* 제목 */}
       <div>
@@ -244,7 +271,7 @@ function ScrapForm({ replay, folders, selectedWeek, author, onSaved }) {
             : 'bg-brand hover:bg-brand-dark text-white'
         }`}
       >
-        {saved ? <><Check size={15} /> 저장됨!</> : <><FolderPlus size={15} /> 스크랩 저장</>}
+        {saved ? <><Check size={15} /> 저장됨!</> : <><FolderPlus size={15} /> {formatTime(liveSeconds)} 지점 저장</>}
       </button>
     </div>
   )
@@ -319,6 +346,7 @@ export default function AllReplaysArchive({ folders, onWeekChange, selectedWeek:
   const [adminReplays, setAdminReplays] = useState([])
   const [weekFilter, setWeekFilter] = useState('all')
   const [scrapRefreshKey, setScrapRefreshKey] = useState(0)
+  const [scrapFormOpen, setScrapFormOpen] = useState(false)
   const mountRef = useRef(null)
   const playerRef = useRef(null)
   const admin = isAdminMode()
@@ -364,6 +392,7 @@ export default function AllReplaysArchive({ folders, onWeekChange, selectedWeek:
 
   const handleVideoClick = (replay) => {
     setActiveVideoId(replay.videoId)
+    setScrapFormOpen(false)
     if (onWeekChange && ['0', '1', '2', '3', '4'].includes(replay.week)) {
       onWeekChange(replay.week)
     }
@@ -497,17 +526,34 @@ export default function AllReplaysArchive({ folders, onWeekChange, selectedWeek:
                 <div ref={mountRef} className="w-full h-full" />
               </div>
 
-              {/* 스크랩: analysis(내 시뮬레이션)에 넣지 않고 live_scrap에 별도로 저장한다 —
-                  녹음 분석의 스크랩처럼 시분초를 기록해두고, 아래 목록에서 눌러서 그 지점부터 다시 볼 수 있다 */}
+              {/* 스크랩: analysis(내 시뮬레이션)에 넣지 않고 live_scrap에 별도로 저장한다.
+                  기본으로는 이미 저장해둔 목록이 먼저 보이는 게 훑어보기 편해서, 새로 추가하는
+                  폼은 "스크랩하기" 버튼 뒤에 접어두고 필요할 때만 펼친다. */}
               {activeReplay && (
                 <>
-                  <ScrapForm
-                    replay={activeReplay}
-                    folders={folders}
-                    selectedWeek={propSelectedWeek || (activeReplay?.week ?? '0')}
-                    author={author}
-                    onSaved={() => setScrapRefreshKey((k) => k + 1)}
-                  />
+                  <button
+                    onClick={() => setScrapFormOpen((o) => !o)}
+                    className={`w-full flex items-center justify-center gap-1.5 font-bold py-2.5 rounded-xl text-sm transition active:scale-95 ${
+                      scrapFormOpen
+                        ? 'bg-surface-alt text-gray-300 border border-white/10'
+                        : 'bg-brand hover:bg-brand-dark text-white'
+                    }`}
+                  >
+                    <Bookmark size={15} />
+                    {scrapFormOpen ? '스크랩 폼 닫기' : '스크랩하기'}
+                  </button>
+
+                  {scrapFormOpen && (
+                    <ScrapForm
+                      replay={activeReplay}
+                      folders={folders}
+                      selectedWeek={propSelectedWeek || (activeReplay?.week ?? '0')}
+                      author={author}
+                      getCurrentSeconds={() => playerRef.current?.getCurrentTime?.() || 0}
+                      onSaved={() => { setScrapRefreshKey((k) => k + 1); setScrapFormOpen(false) }}
+                    />
+                  )}
+
                   <ScrapList
                     replay={activeReplay}
                     author={author}
