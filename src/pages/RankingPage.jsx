@@ -27,7 +27,6 @@ function RankingCard({ title, icon, unit, ranked, myName }) {
   const top = ranked.slice(0, TOP_N)
   const maxValue = ranked[0]?.value || 1
   const mine = ranked.find((r) => r.name === myName)
-  const mineInTop = mine && mine.rank <= TOP_N
 
   return (
     <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 space-y-4">
@@ -36,10 +35,17 @@ function RankingCard({ title, icon, unit, ranked, myName }) {
           {icon}
           {title}
         </h3>
-        <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
-          <Crown size={12} />
-          현재 1위 {maxValue}{unit}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {mine && (
+            <span className="inline-flex items-center gap-1 text-xs font-bold text-brand bg-brand-light px-2.5 py-1 rounded-full">
+              내 등수 {mine.rank}위 · {mine.value}{unit}
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
+            <Crown size={12} />
+            현재 1위 {maxValue}{unit}
+          </span>
+        </div>
       </div>
 
       {/* 익명 순위 막대 — 등수와 개수만, 이름은 절대 안 보여준다 */}
@@ -67,14 +73,6 @@ function RankingCard({ title, icon, unit, ranked, myName }) {
           <p className="text-xs text-gray-500 text-center py-4">아직 기록이 없어요</p>
         )}
       </div>
-
-      {/* 내 등수는 top10 밖이어도 항상 알려준다 */}
-      {mine && !mineInTop && (
-        <div className="flex items-center justify-between p-2.5 bg-brand-light rounded-xl">
-          <span className="text-xs font-bold text-brand">내 등수</span>
-          <span className="text-sm font-extrabold text-brand">{mine.rank}위 · {mine.value}{unit}</span>
-        </div>
-      )}
     </div>
   )
 }
