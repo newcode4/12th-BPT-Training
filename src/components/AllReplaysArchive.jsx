@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, PlayCircle, ShieldCheck, Plus, Trash2, FolderPlus } from 'lucide-react'
+import { ChevronDown, PlayCircle, ShieldCheck, Plus, Trash2, FolderPlus, Bookmark, Check, X } from 'lucide-react'
 import { loadYouTubeAPI, parseYouTubeUrl } from '../utils/youtube'
 import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 import { isAdminMode } from '../utils/admin'
-import { generateUUID } from '../utils/formatters'
+import { generateUUID, parseHMSToSeconds } from '../utils/formatters'
 
 const WEEK_FILTERS = [
   { id: 'all', label: '전체보기' },
@@ -15,21 +15,13 @@ const WEEK_FILTERS = [
   { id: '4', label: '4주차' },
   { id: '0-4', label: '0~4주차 랜덤' },
 ]
-// 관리자가 회차를 추가할 때 고를 수 있는 목록 (전체보기는 제외)
 const ADMIN_WEEK_OPTIONS = WEEK_FILTERS.filter((f) => f.id !== 'all')
 
-// 회차의 week는 관리자가 명시적으로 지정한 값('0'~'4' 또는 '0-3'/'0-4')이다.
-// '0~3주차 랜덤'/'0~4주차 랜덤'은 이름에 "랜덤"이 붙어있을 뿐 다른 필터와 똑같이 동작하는
-// 독립된 카테고리다 (뽑기 기능도 아니고, 0~4주차를 아우르는 범위 필터도 아니다).
-// 그래서 week 값이 필터 id와 정확히 같을 때만 노출한다 — '3주차'에 속한 회차가
-// '0~3주차 랜덤'에도 겹쳐 보이거나, 반대로 '0~4주차 랜덤'이 전체를 다 삼키는 일이 없게.
 function matchesWeekFilter(filterId, week) {
   if (filterId === 'all') return true
   return String(week ?? '0') === filterId
 }
 
-// 전체 라이브 다시보기 (날짜순 원본 아카이브) - YYMMDD, videoId, week(필터 소속)
-// 관리자가 추가하는 회차는 서버(records, kind: replay)에 쌓인다
 const CURATED_REPLAYS = [
   { date: '260804', videoId: 'RIBFaQZL7no', week: '4' },
   { date: '260803', videoId: 'fGxzSRnk27E', week: '4' },
@@ -56,8 +48,6 @@ function formatArchiveDate(yymmdd) {
   return `20${yy}.${mm}.${dd}`
 }
 
-// 지금 보고 있는 주차 필터를 그대로 추가 폼의 기본 소속 필터로 쓴다.
-// '전체보기'를 보고 있을 땐 특정 주차로 단정할 수 없으니 '0'으로 되돌린다.
 function defaultWeekFrom(filterId) {
   return ADMIN_WEEK_OPTIONS.some((f) => f.id === filterId) ? filterId : '0'
 }
@@ -137,28 +127,207 @@ function AdminAddReplayForm({ viewFilter, onAdded }) {
   )
 }
 
-export default function AllReplaysArchive({ folders, onAddToAnalysis, onWeekChange }) {
+// 스크랩 저장 폼: 시분초 + 제목 + 메모(선택)
+function ScrapForm({ replay, folders, selectedWeek, author, onSaved }) {
+  const [title, setTitle] = useState('')
+  const [timestamp, setTimestamp] = useState('')
+  const [memo, setMemo] = useState('')
+  const [folder, setFolder] = useState(folders?.[0] || '')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    if (folders && folders.length > 0 && !folders.includes(folder)) {
+      setFolder(folders[0])
+    }
+  }, [folders])
+
+  const handleSave = async () => {
+    if (!title.trim()) {
+      alert('제목을 입력해주세요.')
+      return
+    }
+    setSaving(true)
+    const scrap = {
+      id: generateUUID(),
+      videoId: replay.videoId,
+      replayDate: replay.date,
+      week: selectedWeek,
+      folder: folder || folders?.[0] || '전체 녹음',
+      title: title.trim(),
+      timestamp: timestamp.trim(),
+      memo: memo.trim(),
+      author,
+      createdAt: new Date().toISOString(),
+    }
+    try {
+      await putRecord('live_scrap', scrap, { author, week: selectedWeek })
+      setSaved(true)
+      setTitle('')
+      setTimestamp('')
+      setMemo('')
+      onSaved?.(scrap)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (e) {
+      alert('스크랩 저장에 실패했어요: ' + e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2.5 bg-surface-alt p-3.5 rounded-xl border border-brand/20">
+      <p className="text-xs font-bold text-brand flex items-center gap-1.5">
+        <Bookmark size={13} />
+        이 영상 스크랩하기
+      </p>
+
+      {/* 세부 카테고리 */}
+      {folders && folders.length > 0 && (
+        <div>
+          <p className="text-[11px] text-gray-500 mb-1">세부 카테고리</p>
+          <select
+            value={folder}
+            onChange={(e) => setFolder(e.target.value)}
+            className="w-full p-2.5 bg-surface border border-white/10 rounded-xl text-sm font-bold focus:outline-none focus:border-brand"
+          >
+            {folders.map(f => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* 시분초 입력 */}
+      <div>
+        <p className="text-[11px] text-gray-500 mb-1">시작 시분초 (예: 1:23:45)</p>
+        <input
+          type="text"
+          value={timestamp}
+          onChange={(e) => setTimestamp(e.target.value)}
+          placeholder="예: 5:39:22"
+          className="w-full p-2.5 bg-surface border border-white/10 rounded-xl text-sm font-mono focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+        />
+      </div>
+
+      {/* 제목 */}
+      <div>
+        <p className="text-[11px] text-gray-500 mb-1">제목 <span className="text-brand">*</span></p>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSave()}
+          placeholder="예: 청중 눈 맞춤 포인트"
+          className="w-full p-2.5 bg-surface border border-white/10 rounded-xl text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+        />
+      </div>
+
+      {/* 메모 (선택) */}
+      <div>
+        <p className="text-[11px] text-gray-500 mb-1">메모 (선택)</p>
+        <textarea
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          placeholder="따라하고 싶은 이유나 적용 방법..."
+          rows={2}
+          className="w-full p-2.5 bg-surface border border-white/10 rounded-xl text-sm resize-none focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+        />
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={saving || !title.trim()}
+        className={`w-full flex items-center justify-center gap-1.5 font-bold py-2.5 rounded-xl text-sm transition active:scale-95 disabled:opacity-60 ${
+          saved
+            ? 'bg-emerald-500 text-white'
+            : 'bg-brand hover:bg-brand-dark text-white'
+        }`}
+      >
+        {saved ? <><Check size={15} /> 저장됨!</> : <><FolderPlus size={15} /> 스크랩 저장</>}
+      </button>
+    </div>
+  )
+}
+
+// 저장한 스크랩 목록 — 녹음 분석의 스크랩처럼, 시분초를 누르면 그 지점부터 다시 볼 수 있다
+function ScrapList({ replay, author, refreshKey, onSeek }) {
+  const [scraps, setScraps] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    listRecords('live_scrap', { author })
+      .then((rows) => {
+        if (cancelled) return
+        setScraps(
+          rows
+            .filter((r) => r.videoId === replay.videoId)
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        )
+        setLoading(false)
+      })
+      .catch((e) => { console.error('스크랩 불러오기 실패', e); setLoading(false) })
+    return () => { cancelled = true }
+  }, [replay.videoId, author, refreshKey])
+
+  const handleDelete = (id) => {
+    setScraps((prev) => prev.filter((s) => s.id !== id))
+    removeRecord('live_scrap', id).catch((e) => console.error('스크랩 삭제 실패', e))
+  }
+
+  if (loading || scraps.length === 0) return null
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-bold text-gray-500">이 영상에서 저장한 스크랩</p>
+      {scraps.map((s) => (
+        <div key={s.id} className="flex items-start justify-between gap-2 p-2.5 bg-surface-alt rounded-xl">
+          <button
+            onClick={() => s.timestamp && onSeek?.(parseHMSToSeconds(s.timestamp))}
+            className="min-w-0 text-left flex-1"
+          >
+            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+              {s.timestamp && (
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-brand-light text-brand">
+                  {s.timestamp}
+                </span>
+              )}
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-gray-400">
+                {s.folder}
+              </span>
+            </div>
+            <p className="text-sm font-bold text-gray-200">{s.title}</p>
+            {s.memo && <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{s.memo}</p>}
+          </button>
+          <button
+            onClick={() => handleDelete(s.id)}
+            className="shrink-0 text-gray-600 hover:text-red-500"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export default function AllReplaysArchive({ folders, onWeekChange, selectedWeek: propSelectedWeek }) {
   const [open, setOpen] = useState(false)
   const [activeVideoId, setActiveVideoId] = useState(null)
   const [adminReplays, setAdminReplays] = useState([])
   const [weekFilter, setWeekFilter] = useState('all')
-  const [selectedAddFolder, setSelectedAddFolder] = useState('')
+  const [scrapRefreshKey, setScrapRefreshKey] = useState(0)
   const mountRef = useRef(null)
   const playerRef = useRef(null)
   const admin = isAdminMode()
-
-  useEffect(() => {
-    if (folders && folders.length > 0 && !folders.includes(selectedAddFolder)) {
-      setSelectedAddFolder(folders[0])
-    }
-  }, [folders, selectedAddFolder])
+  const author = localStorage.getItem('qa-author') || '익명'
 
   useEffect(() => {
     listRecords('replay').then(setAdminReplays).catch(() => {})
   }, [])
 
-  // 관리자가 추가한 회차가 큐레이션 목록과 날짜가 겹치면 관리자 쪽을 우선한다 (최신으로 교체 가능하게).
-  // 삭제 표시(deleted)만 붙은 레코드도 "이 날짜는 관리자가 손을 댔다"는 의미라 큐레이션 쪽은 계속 숨긴다.
   const curatedFiltered = CURATED_REPLAYS.filter(
     (c) => !adminReplays.some((a) => a.date === c.date)
   )
@@ -166,8 +335,6 @@ export default function AllReplaysArchive({ folders, onAddToAnalysis, onWeekChan
   const replays = allReplays.filter((r) => matchesWeekFilter(weekFilter, r.week ?? '0'))
   const activeReplay = replays.find((r) => r.videoId === activeVideoId) || allReplays.find((r) => r.videoId === activeVideoId)
 
-  // 코드에 박아둔 큐레이션 회차는 DB 레코드가 없어서 그냥 지울 수가 없다.
-  // "삭제됨" 표시가 붙은 레코드를 하나 만들어 그 날짜의 큐레이션 항목을 영구히 가려버린다.
   const handleDelete = (replay) => {
     const isCuratedDate = CURATED_REPLAYS.some((c) => c.date === replay.date)
     if (replay.id && !isCuratedDate) {
@@ -181,8 +348,6 @@ export default function AllReplaysArchive({ folders, onAddToAnalysis, onWeekChan
     if (activeVideoId === replay.videoId) setActiveVideoId(null)
   }
 
-  // 큐레이션 회차든 관리자가 넣은 회차든, 주차를 바꾸면 그 자리에 새 소속으로 덮어쓴다
-  // (같은 날짜에 관리자 레코드가 생기면 큐레이션 원본은 자동으로 가려진다).
   const handleMoveWeek = (replay, newWeek) => {
     const updated = { id: replay.id || generateUUID(), date: replay.date, videoId: replay.videoId, week: newWeek }
     setAdminReplays((prev) => [updated, ...prev.filter((r) => r.id !== updated.id)])
@@ -204,9 +369,6 @@ export default function AllReplaysArchive({ folders, onAddToAnalysis, onWeekChan
     }
   }
 
-  // 주차 필터를 바꾸면 영상 영역(mountRef)이 DOM에서 사라졌다가 다시 생기는데,
-  // 그때 예전 플레이어 인스턴스를 loadVideoById로 재사용하면 이미 떨어져 나간
-  // 옛 노드를 계속 붙잡고 있어 화면이 까맣게 나온다. 바뀔 때마다 새로 만든다.
   useEffect(() => {
     if (!activeVideoId) return
     let cancelled = false
@@ -245,8 +407,6 @@ export default function AllReplaysArchive({ folders, onAddToAnalysis, onWeekChan
               viewFilter={weekFilter}
               onAdded={(r) => {
                 setAdminReplays([r, ...adminReplays])
-                // 추가한 회차가 지금 보고 있는 필터에 속하면 바로 재생 화면에 띄워서
-                // "추가했는데 반영이 안 됐다"는 오해가 없게 한다.
                 if (matchesWeekFilter(weekFilter, r.week)) setActiveVideoId(r.videoId)
               }}
             />
@@ -332,32 +492,29 @@ export default function AllReplaysArchive({ folders, onAddToAnalysis, onWeekChan
           )}
 
           {activeVideoId ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="aspect-video rounded-xl overflow-hidden bg-black">
                 <div ref={mountRef} className="w-full h-full" />
               </div>
-              {onAddToAnalysis && activeReplay && (
-                <div className="space-y-2 bg-surface-alt p-3 rounded-xl border border-brand/20">
-                  <p className="text-xs font-bold text-gray-400">이 영상을 어느 세부 카테고리에 스크랩할까요?</p>
-                  {folders && folders.length > 0 && (
-                    <select
-                      value={selectedAddFolder}
-                      onChange={(e) => setSelectedAddFolder(e.target.value)}
-                      className="w-full p-2.5 bg-surface border border-white/10 rounded-xl text-sm font-bold focus:outline-none focus:border-brand"
-                    >
-                      {folders.map(f => (
-                        <option key={f} value={f}>{f}</option>
-                      ))}
-                    </select>
-                  )}
-                  <button
-                    onClick={() => onAddToAnalysis(activeReplay, selectedAddFolder || folders?.[0] || '기본')}
-                    className="w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
-                  >
-                    <FolderPlus size={15} />
-                    스크랩하기
-                  </button>
-                </div>
+
+              {/* 스크랩: analysis(내 시뮬레이션)에 넣지 않고 live_scrap에 별도로 저장한다 —
+                  녹음 분석의 스크랩처럼 시분초를 기록해두고, 아래 목록에서 눌러서 그 지점부터 다시 볼 수 있다 */}
+              {activeReplay && (
+                <>
+                  <ScrapForm
+                    replay={activeReplay}
+                    folders={folders}
+                    selectedWeek={propSelectedWeek || (activeReplay?.week ?? '0')}
+                    author={author}
+                    onSaved={() => setScrapRefreshKey((k) => k + 1)}
+                  />
+                  <ScrapList
+                    replay={activeReplay}
+                    author={author}
+                    refreshKey={scrapRefreshKey}
+                    onSeek={(seconds) => playerRef.current?.seekTo?.(seconds, true)}
+                  />
+                </>
               )}
             </div>
           ) : replays.length > 0 && (

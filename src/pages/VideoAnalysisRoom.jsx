@@ -56,10 +56,24 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
     onJumpConsumed?.()
   }, [jumpWeek])
 
+  const [liveScrapCounts, setLiveScrapCounts] = useState({ byWeek: {}, byFolder: {} })
+
   useEffect(() => {
     // 시뮬레이션 분석(녹음/유튜브 링크)은 개인 기록이라 본인 것만 불러온다
     listRecords('analysis', { author }).then(setAnalyses).catch((e) => console.error('분석 불러오기 실패', e))
     listRecords('insight').then(setInsights).catch((e) => console.error('인사이트 불러오기 실패', e))
+    // 라이브 스크랩 카운트 로드
+    listRecords('live_scrap', { author }).then((rows) => {
+      const byWeek = {}
+      const byFolder = {}
+      for (const r of rows) {
+        const w = r.week || '0'
+        byWeek[w] = (byWeek[w] || 0) + 1
+        const key = `${w}::${r.folder || '전체 녹음'}`
+        byFolder[key] = (byFolder[key] || 0) + 1
+      }
+      setLiveScrapCounts({ byWeek, byFolder })
+    }).catch(() => {})
   }, [author])
 
   // setState(updaterFn) 형태는 React가 fn을 "당장"이 아니라 렌더 단계에서 나중에 실행한다 —
@@ -348,27 +362,6 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
     })
   }
 
-  // 전체 라이브 다시보기에서 "내 시뮬레이션 분석에 추가" — 유튜브 소스라 모아보기로 보낸다
-  const handleAddReplayToAnalysis = (replay, folderName) => {
-    const analysis = {
-      id: generateUUID(),
-      week: selectedWeek,
-      folder: folderName || selectedFolder,
-      source: 'youtube',
-      videoId: replay.videoId,
-      startSeconds: 0,
-      scraps: [],
-      author,
-      uploadedAt: new Date().toISOString(),
-    }
-    setAnalyses([...analyses, analysis])
-    putRecord('analysis', analysis, { author, week: selectedWeek })
-      .catch(e => alert('내 분석에 추가하지 못했어요: ' + e.message))
-    requestAnimationFrame(() => {
-      document.getElementById('youtube-simulation-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
-  }
-
   // "내 시뮬레이션 모아보기"에서 링크만 붙여넣어 바로 등록 (지금 선택된 주차/폴더에 걸린다)
   const handleAddMyLink = async (url, startSeconds = 0, week = selectedWeek) => {
     const videoId = parseYouTubeUrl(url)
@@ -413,8 +406,16 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   const analysisDisplayName = (analysis) =>
     analysis.title || (analysis.source === 'youtube' ? `유튜브 · ${analysis.videoId}` : analysis.filename)
 
-  const countByWeek = (weekId) => analyses.filter(a => (a.week || '0') === weekId && a.source !== 'youtube').length
-  const countByFolder = (folder) => analyses.filter(a => (a.week || '0') === selectedWeek && (a.folder || FULL_RECORDING_FOLDER) === folder && a.source !== 'youtube').length
+  const countByWeek = (weekId) => {
+    const analysisCount = analyses.filter(a => (a.week || '0') === weekId && a.source !== 'youtube').length
+    const scrapCount = liveScrapCounts.byWeek[weekId] || 0
+    return analysisCount + scrapCount
+  }
+  const countByFolder = (folder) => {
+    const analysisCount = analyses.filter(a => (a.week || '0') === selectedWeek && (a.folder || FULL_RECORDING_FOLDER) === folder && a.source !== 'youtube').length
+    const scrapCount = liveScrapCounts.byFolder[`${selectedWeek}::${folder}`] || 0
+    return analysisCount + scrapCount
+  }
   // 음성 녹음 분석 피드백은 파일(녹음) 전용 — 유튜브 소스는 "내 시뮬레이션 모아보기"에서만 다룬다
   const analysesInFolder = analyses
     .filter(a => (a.week || '0') === selectedWeek && (a.folder || FULL_RECORDING_FOLDER) === selectedFolder && a.source !== 'youtube')
@@ -648,7 +649,14 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
 
         {/* 예시 시뮬레이션 영상 (유튜브 스크랩) */}
         {!showAllMine && <WeekReferenceVideos week={selectedWeek} />}
-        {!showAllMine && <AllReplaysArchive currentWeek={selectedWeek} folders={folders} onAddToAnalysis={handleAddReplayToAnalysis} />}
+        {!showAllMine && <AllReplaysArchive
+          selectedWeek={selectedWeek}
+          folders={folders}
+          onWeekChange={(week) => {
+            setShowAllMine(false)
+            setSelectedWeek(week)
+          }}
+        />}
 
         {/* 내 시뮬레이션 모아보기 — 주차/폴더 안 가리고 내가 올린 걸 순서대로 모아보고,
             그 자리에서 바로 재생 + 피드백까지 끝낼 수 있게 한다 */}

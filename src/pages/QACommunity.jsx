@@ -153,7 +153,9 @@ export default function QACommunity({ author, onLogout }) {
     setPage(1)
   }, [categoryFilter, topicFilter, weekFilter, searchQuery, sortBy])
 
-  // 새로고침해도 보고 있던 글이 그대로 열려 있게 한다 (전엔 항상 목록으로 돌아갔다)
+  // 새로고침해도 보고 있던 글이 그대로 열려 있게 한다 (전엔 항상 목록으로 돌아갔다).
+  // 글쓰기 중이었을 때도 마찬가지 — 중복 확인하러 검색하다 돌아왔을 때 쓰던 내용이
+  // 다 날아가고 목록으로 튕겨나가면 안 되니, 쓰던 폼 내용까지 같이 복원한다.
   useEffect(() => {
     if (restoredViewRef.current || loading || questions.length === 0) return
     restoredViewRef.current = true
@@ -165,6 +167,16 @@ export default function QACommunity({ author, onLogout }) {
           setSelectedQuestion(q)
           setView('detail')
         }
+      } else if (saved?.view === 'write' && saved.draft) {
+        const d = saved.draft
+        setNewCategory(d.newCategory ?? 'unexpected')
+        setNewTitle(d.newTitle ?? '')
+        setNewContent(d.newContent ?? '')
+        setNewWeek(d.newWeek ?? '')
+        setNewTopic(d.newTopic ?? '')
+        setShowContentField(Boolean(d.newContent))
+        setEditingId(d.editingId ?? null)
+        setView('write')
       }
     } catch {}
   }, [loading, questions])
@@ -175,10 +187,15 @@ export default function QACommunity({ author, onLogout }) {
     if (!restoredViewRef.current) return
     if (view === 'detail' && selectedQuestion) {
       sessionStorage.setItem(QA_LAST_VIEW_KEY, JSON.stringify({ questionId: selectedQuestion.id }))
+    } else if (view === 'write') {
+      sessionStorage.setItem(QA_LAST_VIEW_KEY, JSON.stringify({
+        view: 'write',
+        draft: { newCategory, newTitle, newContent, newWeek, newTopic, editingId },
+      }))
     } else if (view === 'list') {
       sessionStorage.removeItem(QA_LAST_VIEW_KEY)
     }
-  }, [view, selectedQuestion])
+  }, [view, selectedQuestion, newCategory, newTitle, newContent, newWeek, newTopic, editingId])
 
   // 목록에서 스크롤을 내린 채로 글을 선택하면, 상세 화면도 그 위치 그대로 이어져
   // 제목/본문 윗부분이 화면 위로 잘려 보인다. 화면(글쓰기/상세)이 바뀔 때는 맨 위로 올린다.

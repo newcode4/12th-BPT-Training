@@ -291,6 +291,7 @@ export default function PracticeRoom({ initialScriptFilter, onInitialFilterConsu
               ))}
             </div>
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {pagedVisible.map((q) => {
             const hasScript = Boolean(scripts[q.id]?.text)
             const isExpanded = expandedIds.has(q.id)
@@ -344,6 +345,7 @@ export default function PracticeRoom({ initialScriptFilter, onInitialFilterConsu
             </div>
             )
           })}
+          </div>
           {visible.length === 0 && (
             <div className="text-center py-12 bg-surface rounded-2xl border border-white/10 space-y-1">
               <p className="text-gray-400 font-bold">조건에 맞는 돌발질문이 없어요</p>
