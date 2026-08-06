@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom'
 import { X, PlayCircle } from 'lucide-react'
 
-const GUIDE_VIDEO_ID = 'ikl2RaRy9KM'
+const GUIDE_VIDEO_ID = '8VZl2zUUa1w'
 
 // 시뮬레이터 활용법 설명 영상 — 처음 들어왔을 때 한 번 자동으로 보여주고,
 // 나중에 다시 보고 싶으면 상단 네비게이션의 가이드 버튼으로 언제든 다시 열 수 있다.
