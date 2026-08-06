@@ -8,7 +8,8 @@ const CATEGORY_LABEL = {
   presentation: '발표 후 받은 피드백',
 }
 
-// 모든 주차의 "나의 피드백"을 한눈에 모아보는 팝업 (WeekFeedback과 같은 저장소를 공유한다)
+// 모든 주차의 "나의 피드백"을 한눈에 모아보는 팝업 — "내 시뮬레이션 모아보기"의 각 카드
+// 안에 있는 "내 피드백"과 같은 저장소를 공유한다(feedback, analysisId로 어느 영상인지 구분)
 export default function FeedbackDigest({ onJumpToWeek, onClose }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
@@ -58,7 +59,7 @@ export default function FeedbackDigest({ onJumpToWeek, onClose }) {
           <p className="text-sm text-gray-500 text-center py-4">불러오는 중...</p>
         ) : entries.length === 0 ? (
           <p className="text-sm text-gray-500 text-center py-4">
-            아직 기록한 피드백이 없어요. 시뮬레이션 분석실의 "인사이트 & 피드백"에서 남겨보세요.
+            아직 기록한 피드백이 없어요. "내 시뮬레이션 모아보기"에서 시뮬레이션을 펼치면 나오는 "내 피드백"에서 남겨보세요.
           </p>
         ) : (
           <>

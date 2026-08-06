@@ -9,7 +9,14 @@ const navItems = [
 
 const SIMULATOR_URL = 'https://azuremooni.github.io/businesspt-simulator/'
 
-export default function Navigation({ currentPage, setCurrentPage, onOpenProfile, onOpenFeedback, onOpenGuide }) {
+// 새로 생긴 기능이라는 걸 알려주는 작은 빨간 점 — 한 번 눌러보면(App.jsx에서 seen 처리) 사라진다
+function NewDot() {
+  return (
+    <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-brand ring-2 ring-surface" />
+  )
+}
+
+export default function Navigation({ currentPage, setCurrentPage, onOpenProfile, onOpenFeedback, onOpenGuide, showGuideBadge, showRankingBadge }) {
   return (
     <>
       {/* 상단 바 */}
@@ -41,7 +48,7 @@ export default function Navigation({ currentPage, setCurrentPage, onOpenProfile,
                       key={item.id}
                       onClick={() => setCurrentPage(item.id)}
                       title={item.label}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition-all duration-300 active:scale-95 whitespace-nowrap ${
+                      className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition-all duration-300 active:scale-95 whitespace-nowrap ${
                         currentPage === item.id
                           ? 'bg-brand text-white shadow-floating scale-105'
                           : 'text-gray-400 hover:bg-white/10 hover:text-gray-100'
@@ -49,6 +56,7 @@ export default function Navigation({ currentPage, setCurrentPage, onOpenProfile,
                     >
                       <Icon size={16} />
                       {item.short}
+                      {item.id === 'ranking' && showRankingBadge && <NewDot />}
                     </button>
                   )
                 })}
@@ -66,9 +74,10 @@ export default function Navigation({ currentPage, setCurrentPage, onOpenProfile,
               <button
                 onClick={onOpenGuide}
                 title="시뮬레이션 활용법 (안내 영상)"
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-surface-alt hover:bg-brand-light text-gray-400 hover:text-brand transition"
+                className="relative w-9 h-9 flex items-center justify-center rounded-full bg-surface-alt hover:bg-brand-light text-gray-400 hover:text-brand transition"
               >
                 <PlayCircle size={17} />
+                {showGuideBadge && <NewDot />}
               </button>
               <button
                 onClick={onOpenFeedback}
@@ -104,12 +113,15 @@ export default function Navigation({ currentPage, setCurrentPage, onOpenProfile,
               {currentPage === item.id && (
                 <span className="anim-fade absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-brand shadow-floating" />
               )}
-              <Icon
-                size={20}
-                className={`transition-transform duration-300 ${
-                  currentPage === item.id ? 'scale-110 -translate-y-0.5' : ''
-                }`}
-              />
+              <span className="relative">
+                <Icon
+                  size={20}
+                  className={`transition-transform duration-300 ${
+                    currentPage === item.id ? 'scale-110 -translate-y-0.5' : ''
+                  }`}
+                />
+                {item.id === 'ranking' && showRankingBadge && <NewDot />}
+              </span>
               <span className="whitespace-nowrap">{item.short}</span>
             </button>
           )

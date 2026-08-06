@@ -15,7 +15,6 @@ import ScrapEditor from '../components/ScrapEditor'
 import WeekReferenceVideos from '../components/WeekReferenceVideos'
 import AllReplaysArchive from '../components/AllReplaysArchive'
 import WeekInsights from '../components/WeekInsights'
-import WeekFeedback from '../components/WeekFeedback'
 import CurriculumOverview from '../components/CurriculumOverview'
 import MySimulationsOverview from '../components/MySimulationsOverview'
 import WeekScraps from '../components/WeekScraps'
@@ -954,7 +953,8 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
         </div>
         )}
 
-        {/* 인사이트 · 피드백 */}
+        {/* 인사이트 — 피드백은 이제 여기서 따로 안 쓰고, 각 시뮬레이션 카드 안의 "내 피드백"에서만 남긴다.
+            그래야 어떤 영상에 대한 피드백인지 분명해지고, 그 시뮬레이션·피드백 모음 양쪽에 다 정확히 뜬다. */}
         <div className="bg-surface rounded-2xl shadow-card border border-white/10 overflow-hidden">
           <button
             onClick={() => setNotesOpen(!notesOpen)}
@@ -963,9 +963,9 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
             <div className="flex items-center gap-2 min-w-0">
               <Sparkles size={18} className="text-brand shrink-0" />
               <div className="min-w-0">
-                <h3 className="text-lg font-extrabold">인사이트 & 피드백</h3>
+                <h3 className="text-lg font-extrabold">인사이트</h3>
                 <p className="text-xs text-gray-500 truncate">
-                  {weekLabel}에 배운 점과 받은 피드백을 기록해요
+                  {weekLabel}에 배운 점을 기록해요
                 </p>
               </div>
             </div>
@@ -978,7 +978,6 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
           {notesOpen && (
             <div className="p-4 md:p-6 pt-0 space-y-4">
               <WeekInsights week={selectedWeek} insights={insights} setInsights={setInsights} author={author} />
-              <WeekFeedback week={selectedWeek} />
             </div>
           )}
         </div>

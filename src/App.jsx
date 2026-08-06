@@ -73,10 +73,30 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [author])
 
+  // 새로 생긴 "가이드"/"랭킹"에 빨간 점을 붙여서 눈에 띄게 한다 — 한 번 열어보면 사라진다.
+  // localStorage만 갱신하고 끝내면 그 값을 다시 읽어줄 리렌더가 안 일어나서 점이 안 사라지니,
+  // 상태로도 같이 들고 있는다.
+  const [showGuideBadge, setShowGuideBadge] = useState(false)
+  const [showRankingBadge, setShowRankingBadge] = useState(false)
+
+  useEffect(() => {
+    if (!author) return
+    setShowGuideBadge(!localStorage.getItem(`pt-guide-seen-${author}`))
+    setShowRankingBadge(!localStorage.getItem(`pt-ranking-seen-${author}`))
+  }, [author])
+
   const closeGuide = () => {
     setShowGuide(false)
     if (author) localStorage.setItem(`pt-guide-seen-${author}`, 'true')
+    setShowGuideBadge(false)
   }
+
+  useEffect(() => {
+    if (currentPage === 'ranking' && author) {
+      localStorage.setItem(`pt-ranking-seen-${author}`, 'true')
+      setShowRankingBadge(false)
+    }
+  }, [currentPage, author])
 
   const handleJumpToWeek = (week) => {
     setJumpWeek(week)
@@ -123,6 +143,8 @@ export default function App() {
         onOpenProfile={() => setShowProfile(true)}
         onOpenFeedback={() => setShowFeedback(true)}
         onOpenGuide={() => setShowGuide(true)}
+        showGuideBadge={showGuideBadge}
+        showRankingBadge={showRankingBadge}
       />
       {/* key를 바꿔 페이지가 바뀔 때마다 등장 모션이 다시 돈다 */}
       <main key={currentPage} className="anim-rise flex-1 max-w-5xl w-full mx-auto px-4 py-6">

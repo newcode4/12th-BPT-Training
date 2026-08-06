@@ -159,10 +159,11 @@ const FEEDBACK_CATEGORIES = [
   { id: 'presentation', label: '발표 후 받은 피드백' },
 ]
 
-// "내 피드백"은 시뮬레이션 전용 저장소가 아니라, 인사이트&피드백 쪽 "피드백 모음"(WeekFeedback)과
-// 완전히 같은 'feedback' 레코드를 쓴다 — 여기서 쓴 게 피드백 모음에도 그대로 뜨고,
-// 거기서 지우면 여기서도 사라진다. week만 이 시뮬레이션의 week를 그대로 물려받고,
-// analysisId로 어느 시뮬레이션 것인지만 구분한다. 카테고리(셀프/발표 후 받은)도 그쪽과 똑같이 맞춘다.
+// 피드백은 이제 여기(시뮬레이션 카드) 안에서만 쓸 수 있다 — 예전엔 일반 "이번 주 나의 피드백"
+// (WeekFeedback, 삭제됨)에서도 따로 쓸 수 있었는데, 어느 영상 얘기인지 알 수 없어 혼란스러워서 없앴다.
+// "피드백 모음"(FeedbackDigest)과 완전히 같은 'feedback' 레코드를 쓴다 — 여기서 쓴 게 피드백
+// 모음에도 그대로 뜨고, 거기서 지우면 여기서도 사라진다. week는 이 시뮬레이션의 week를 그대로
+// 물려받고, analysisId로 어느 시뮬레이션 것인지 구분한다.
 function FeedbackSection({ analysis, author }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
