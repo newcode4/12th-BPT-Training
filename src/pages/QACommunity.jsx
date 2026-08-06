@@ -14,6 +14,15 @@ import ScriptPracticeModal from '../components/ScriptPracticeModal'
 import ProfileModal from '../components/ProfileModal'
 import { isAdminMode } from '../utils/admin'
 
+// 돌발질문 주차 중 어느 주차에도 안 걸치는 질문(예: 앱 사용법 등)을 위한 별도 옵션.
+// WEEKS(src/utils/weeks.js)는 커리큘럼 주차라 시뮬레이션 분석실 등 다른 화면에서도 쓰이므로,
+// Q&A 전용인 "기타"를 거기에 섞지 않고 이 파일 안에서만 별도로 다룬다.
+const ETC_WEEK_ID = 'etc'
+function qaWeekLabel(weekId) {
+  if (weekId === ETC_WEEK_ID) return '기타'
+  return WEEKS.find(w => w.id === weekId)?.label || `${weekId}주차`
+}
+
 const CATEGORIES = [
   { id: 'all', label: '전체' },
   { id: 'unexpected', label: '돌발질문' },
@@ -576,6 +585,9 @@ export default function QACommunity({ author, onLogout }) {
                     {w.label}
                   </Chip>
                 ))}
+                <Chip active={weekFilter === ETC_WEEK_ID} onClick={() => setWeekFilter(ETC_WEEK_ID)} className="!text-xs !py-1.5">
+                  기타
+                </Chip>
               </div>
             )}
 
@@ -634,7 +646,7 @@ export default function QACommunity({ author, onLogout }) {
                   <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                     {categoryBadge(q.category)}
                     {q.topic && metaBadge(q.topic)}
-                    {q.week && metaBadge(WEEKS.find(w => w.id === q.week)?.label || `${q.week}주차`)}
+                    {q.week && metaBadge(qaWeekLabel(q.week))}
                     {isUnexpected && (
                       hasScript ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
@@ -770,6 +782,17 @@ export default function QACommunity({ author, onLogout }) {
                         {w.label}
                       </button>
                     ))}
+                    <button
+                      onClick={() => setNewWeek(ETC_WEEK_ID)}
+                      className={`shrink-0 flex items-center gap-1 px-3 py-2.5 rounded-xl text-xs font-bold transition active:scale-95 ${
+                        newWeek === ETC_WEEK_ID
+                          ? 'bg-brand text-white'
+                          : 'bg-surface-alt text-gray-400 hover:bg-white/10'
+                      }`}
+                    >
+                      {newWeek === ETC_WEEK_ID && <Check size={12} className="shrink-0" />}
+                      기타
+                    </button>
                   </div>
                 </div>
 
@@ -893,9 +916,7 @@ export default function QACommunity({ author, onLogout }) {
             <div className="flex items-center gap-1.5 mb-2 flex-wrap">
               {categoryBadge(selectedQuestion.category)}
               {selectedQuestion.topic && metaBadge(selectedQuestion.topic)}
-              {selectedQuestion.week && metaBadge(
-                WEEKS.find(w => w.id === selectedQuestion.week)?.label || `${selectedQuestion.week}주차`
-              )}
+              {selectedQuestion.week && metaBadge(qaWeekLabel(selectedQuestion.week))}
             </div>
             <h3 className="text-xl md:text-2xl font-extrabold mb-2 leading-snug">{selectedQuestion.title}</h3>
             <p className="text-sm text-gray-500 mb-3">

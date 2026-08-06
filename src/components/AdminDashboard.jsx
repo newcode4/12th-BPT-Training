@@ -30,7 +30,7 @@ function SortHeader({ label, icon, sortKey, current, dir, onSort, align = 'cente
   return (
     <button
       onClick={() => onSort(sortKey)}
-      className={`flex items-center gap-1 hover:text-gray-200 transition ${className} ${
+      className={`flex items-center gap-1 whitespace-nowrap hover:text-gray-200 transition ${className} ${
         align === 'left' ? 'justify-start' : 'justify-center'
       } ${active ? 'text-gray-200' : ''}`}
     >
@@ -167,7 +167,7 @@ export default function AdminDashboard({ onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="anim-modal bg-surface rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col border border-white/10">
+      <div className="anim-modal bg-surface rounded-2xl shadow-xl w-full max-w-5xl max-h-[85vh] flex flex-col border border-white/10">
         <div className="flex items-center justify-between p-4 md:p-6 pb-3 border-b border-white/10">
           <h3 className="flex items-center gap-2 text-base md:text-lg font-extrabold">
             <Users size={18} className="text-brand" />
@@ -208,38 +208,72 @@ export default function AdminDashboard({ onClose }) {
                   </button>
                 )}
               </div>
-              <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto] gap-3 px-3 text-[11px] font-bold text-gray-500">
+              {/* 열이 9개라 좁은 화면에서는 줄바꿈되며 깨지므로, 가로 스크롤 컨테이너 안에
+                  최소 폭을 고정해서 항상 한 줄로 유지하고 필요하면 옆으로 스크롤하게 한다 */}
+              <div className="hidden md:block overflow-x-auto">
+              <div className="min-w-[920px]">
+              <div className="grid grid-cols-[160px_64px_76px_76px_76px_84px_76px_92px_92px] gap-3 px-3 text-[11px] font-bold text-gray-500">
                 <SortHeader label="이름" sortKey="name" align="left" current={sortKey} dir={sortDir} onSort={handleSort} />
-                <SortHeader label="접속" sortKey="online" className="w-16" onSort={handleSort} current={sortKey} dir={sortDir} />
-                <SortHeader label="로그인" icon={<LogIn size={11} />} sortKey="loginCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
-                <SortHeader label="출석일" icon={<CalendarCheck2 size={11} />} sortKey="attendanceDays" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
-                <SortHeader label="댓글" icon={<MessageSquareText size={11} />} sortKey="commentCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
-                <SortHeader label="돌발질문" icon={<Zap size={11} />} sortKey="unexpectedCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
-                <SortHeader label="스크랩" icon={<Bookmark size={11} />} sortKey="scrapCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
-                <SortHeader label="시뮬레이션" icon={<LayoutGrid size={11} />} sortKey="simCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
-                <SortHeader label="시뮬 피드백" icon={<PenLine size={11} />} sortKey="simFeedbackCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="접속" sortKey="online" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="로그인" icon={<LogIn size={11} />} sortKey="loginCount" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="출석일" icon={<CalendarCheck2 size={11} />} sortKey="attendanceDays" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="댓글" icon={<MessageSquareText size={11} />} sortKey="commentCount" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="돌발질문" icon={<Zap size={11} />} sortKey="unexpectedCount" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="스크랩" icon={<Bookmark size={11} />} sortKey="scrapCount" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="시뮬레이션" icon={<LayoutGrid size={11} />} sortKey="simCount" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="시뮬 피드백" icon={<PenLine size={11} />} sortKey="simFeedbackCount" onSort={handleSort} current={sortKey} dir={sortDir} />
               </div>
+              <div className="space-y-1.5 mt-1.5">
               {sortedRows.map((r) => (
                 <div
                   key={r.name}
-                  className="grid grid-cols-2 md:grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto] gap-2 md:gap-3 items-center bg-surface-alt rounded-xl px-3 py-2.5"
+                  className="grid grid-cols-[160px_64px_76px_76px_76px_84px_76px_92px_92px] gap-3 items-center bg-surface-alt rounded-xl px-3 py-2.5"
                 >
                   <span className="font-bold text-sm flex items-center gap-1.5 truncate">
                     {r.online && <Circle size={7} className="fill-emerald-400 text-emerald-400 shrink-0" />}
                     {r.name}
                   </span>
-                  <span className="md:w-16 text-right md:text-center text-xs font-bold text-gray-400">
+                  <span className="text-center text-xs font-bold text-gray-400">
                     {r.online ? <span className="text-emerald-400">접속 중</span> : '오프라인'}
                   </span>
-                  <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.loginCount}회</span>
-                  <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.attendanceDays}일</span>
-                  <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.commentCount}개</span>
-                  <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.unexpectedCount}개</span>
-                  <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.scrapCount}개</span>
-                  <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.simCount}개</span>
-                  <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.simFeedbackCount}개</span>
+                  <span className="text-center text-sm font-bold text-gray-200">{r.loginCount}회</span>
+                  <span className="text-center text-sm font-bold text-gray-200">{r.attendanceDays}일</span>
+                  <span className="text-center text-sm font-bold text-gray-200">{r.commentCount}개</span>
+                  <span className="text-center text-sm font-bold text-gray-200">{r.unexpectedCount}개</span>
+                  <span className="text-center text-sm font-bold text-gray-200">{r.scrapCount}개</span>
+                  <span className="text-center text-sm font-bold text-gray-200">{r.simCount}개</span>
+                  <span className="text-center text-sm font-bold text-gray-200">{r.simFeedbackCount}개</span>
                 </div>
               ))}
+              </div>
+              </div>
+              </div>
+
+              {/* 모바일: 가로 그리드 대신 이름당 카드 하나에 라벨을 붙여 세로로 보여준다 */}
+              <div className="md:hidden space-y-2">
+                {sortedRows.map((r) => (
+                  <div key={r.name} className="bg-surface-alt rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm flex items-center gap-1.5">
+                        {r.online && <Circle size={7} className="fill-emerald-400 text-emerald-400 shrink-0" />}
+                        {r.name}
+                      </span>
+                      <span className="text-xs font-bold text-gray-400">
+                        {r.online ? <span className="text-emerald-400">접속 중</span> : '오프라인'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div><p className="text-[10px] text-gray-500">로그인</p><p className="text-sm font-bold text-gray-200">{r.loginCount}회</p></div>
+                      <div><p className="text-[10px] text-gray-500">출석일</p><p className="text-sm font-bold text-gray-200">{r.attendanceDays}일</p></div>
+                      <div><p className="text-[10px] text-gray-500">댓글</p><p className="text-sm font-bold text-gray-200">{r.commentCount}개</p></div>
+                      <div><p className="text-[10px] text-gray-500">돌발질문</p><p className="text-sm font-bold text-gray-200">{r.unexpectedCount}개</p></div>
+                      <div><p className="text-[10px] text-gray-500">스크랩</p><p className="text-sm font-bold text-gray-200">{r.scrapCount}개</p></div>
+                      <div><p className="text-[10px] text-gray-500">시뮬레이션</p><p className="text-sm font-bold text-gray-200">{r.simCount}개</p></div>
+                      <div><p className="text-[10px] text-gray-500">시뮬 피드백</p><p className="text-sm font-bold text-gray-200">{r.simFeedbackCount}개</p></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
