@@ -154,7 +154,7 @@ export default function CommunityPulse({ author, raised = false }) {
 
       {/* 응원 보내기 버튼 — 시뮬레이터 바로가기 바로 위에 쌓아서, 같은 자리에서 이어지는 액션처럼 보이게 */}
       <div
-        className={`fixed ${raised ? 'bottom-56' : 'bottom-36'} md:bottom-40 right-4 md:right-8 z-20`}
+        className={`fixed ${raised ? 'bottom-64' : 'bottom-44'} md:bottom-48 right-4 md:right-8 z-20`}
       >
         <button
           onClick={sendCheer}
