@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, PlayCircle, ShieldCheck, Plus, Trash2, FolderPlus, Shuffle } from 'lucide-react'
+import { ChevronDown, PlayCircle, ShieldCheck, Plus, Trash2, FolderPlus } from 'lucide-react'
 import { loadYouTubeAPI, parseYouTubeUrl } from '../utils/youtube'
 import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 import { isAdminMode } from '../utils/admin'
@@ -18,12 +18,10 @@ const WEEK_FILTERS = [
 // 관리자가 회차를 추가할 때 고를 수 있는 목록 (전체보기는 제외)
 const ADMIN_WEEK_OPTIONS = WEEK_FILTERS.filter((f) => f.id !== 'all')
 
-function isRandomFilter(filterId) {
-  return filterId === '0-3' || filterId === '0-4'
-}
-
 // 회차의 week는 관리자가 명시적으로 지정한 값('0'~'4' 또는 '0-3'/'0-4')이다.
-// 필터 [lo,hi] 범위 안에 회차의 범위가 완전히 포함될 때만 그 필터에 노출한다.
+// '0~3주차 랜덤'/'0~4주차 랜덤'은 이름에 "랜덤"이 붙어있을 뿐 실제로는 다른 필터와 똑같이
+// 동작하는 하나의 카테고리다 (뽑기 기능이 아니다). 필터 [lo,hi] 범위 안에 회차의 범위가
+// 완전히 포함될 때만 그 필터에 노출한다.
 // 예) week='0-3'인 회차는 '0~3주차 랜덤'/'전체보기'에는 보이지만 단일 '3주차'에는 안 보인다.
 function matchesWeekFilter(filterId, week) {
   if (filterId === 'all') return true
@@ -61,7 +59,7 @@ function formatArchiveDate(yymmdd) {
 }
 
 // 지금 보고 있는 주차 필터를 그대로 추가 폼의 기본 소속 필터로 쓴다.
-// '전체보기'나 랜덤 범위를 보고 있을 땐 특정 주차로 단정할 수 없으니 '0'으로 되돌린다.
+// '전체보기'를 보고 있을 땐 특정 주차로 단정할 수 없으니 '0'으로 되돌린다.
 function defaultWeekFrom(filterId) {
   return ADMIN_WEEK_OPTIONS.some((f) => f.id === filterId) ? filterId : '0'
 }
@@ -161,30 +159,15 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
   const allReplays = [...adminReplays, ...curatedFiltered].sort((a, b) => b.date.localeCompare(a.date))
   const replays = allReplays.filter((r) => matchesWeekFilter(weekFilter, r.week ?? '0'))
   const activeReplay = replays.find((r) => r.videoId === activeVideoId) || allReplays.find((r) => r.videoId === activeVideoId)
-  const randomMode = isRandomFilter(weekFilter)
 
   const handleDelete = (id) => {
     setAdminReplays(adminReplays.filter((r) => r.id !== id))
     removeRecord('replay', id).catch((e) => console.error('다시보기 삭제 실패', e))
   }
 
-  const drawRandom = (pool) => {
-    if (pool.length === 0) {
-      setActiveVideoId(null)
-      return
-    }
-    const pick = pool[Math.floor(Math.random() * pool.length)]
-    setActiveVideoId(pick.videoId)
-  }
-
   const handleSelectFilter = (filterId) => {
     setWeekFilter(filterId)
-    if (isRandomFilter(filterId)) {
-      const pool = allReplays.filter((r) => matchesWeekFilter(filterId, r.week ?? '0'))
-      drawRandom(pool)
-    } else {
-      setActiveVideoId(null)
-    }
+    setActiveVideoId(null)
   }
 
   // 주차 필터를 바꾸면 영상 영역(mountRef)이 DOM에서 사라졌다가 다시 생기는데,
@@ -252,11 +235,6 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
             ))}
           </div>
 
-          {/*
-            랜덤 범위 필터도 뽑기 버튼 하나 뒤에 영상 1개만 숨겨두면, 관리자가 회차를 추가해도
-            "반영이 안 됐다"고 오해하기 쉽다 (다시 뽑기 전엔 새로 넣은 영상이 안 보이니까).
-            그래서 랜덤 범위에서도 날짜 목록을 그대로 보여주고, 뽑기는 보조 기능으로 둔다.
-          */}
           {/* 날짜 토글 필터 */}
           <div className="flex flex-wrap gap-2">
             {replays.map((r) => (
@@ -287,24 +265,11 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
             )}
           </div>
 
-          {randomMode && (
-            <button
-              onClick={() => drawRandom(replays)}
-              className="w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
-            >
-              <Shuffle size={15} />
-              랜덤으로 하나 뽑기
-            </button>
-          )}
-
           {activeVideoId ? (
             <div className="space-y-2">
               <div className="aspect-video rounded-xl overflow-hidden bg-black">
                 <div ref={mountRef} className="w-full h-full" />
               </div>
-              {randomMode && activeReplay && (
-                <p className="text-center text-xs text-gray-500">{formatArchiveDate(activeReplay.date)} 회차</p>
-              )}
               {onAddToAnalysis && activeReplay && (
                 <button
                   onClick={() => onAddToAnalysis(activeReplay)}
