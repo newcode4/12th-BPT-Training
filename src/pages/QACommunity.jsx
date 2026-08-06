@@ -766,6 +766,7 @@ export default function QACommunity({ author, onLogout }) {
                 placeholder="상황을 더 자세히 적어주세요 (선택)"
                 value={newContent}
                 onChange={(e) => setNewContent(e.target.value)}
+                spellCheck={false}
                 className="w-full p-3.5 bg-surface-alt border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                 rows="5"
               />
@@ -952,6 +953,7 @@ export default function QACommunity({ author, onLogout }) {
                 placeholder="대처 방법을 입력해주세요..."
                 value={answerContent}
                 onChange={(e) => setAnswerContent(e.target.value)}
+                spellCheck={false}
                 className="w-full p-3.5 bg-surface-alt border border-white/10 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                 rows="4"
               />

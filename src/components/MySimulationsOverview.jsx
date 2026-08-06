@@ -180,9 +180,14 @@ function SimulationCard({
 
   return (
     <div className="border border-white/10 rounded-2xl overflow-hidden bg-surface">
-      <button
+      {/* TitleEditor가 자체적으로 <button>(연필 아이콘)을 렌더링하므로, 감싸는 헤더는
+          <button>이 아니라 role="button" div로 둔다 — button 안에 button을 못 넣는다 */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onToggle}
-        className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-white/[0.02] transition"
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggle() }}
+        className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-white/[0.02] transition cursor-pointer"
       >
         <div className="flex items-center gap-3 min-w-0">
           <span className="shrink-0 w-8 h-8 rounded-full bg-brand-light text-brand font-extrabold text-sm flex items-center justify-center">
@@ -197,7 +202,7 @@ function SimulationCard({
           </div>
         </div>
         <ChevronDown size={18} className={`shrink-0 text-gray-500 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-      </button>
+      </div>
 
       {expanded && (
         <div className="p-4 pt-0 space-y-4">

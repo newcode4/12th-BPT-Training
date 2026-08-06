@@ -149,6 +149,7 @@ export default function ScriptPracticeModal({
               onChange={(e) => { dirtyRef.current = true; setScript(e.target.value) }}
               placeholder={'이 질문에 어떻게 답할지 그대로 적어보세요.\n\n예)\n먼저 공감 →  기준 설명 →  대안 제시'}
               rows="9"
+              spellCheck={false}
               className="w-full p-3.5 bg-surface-alt border border-white/10 rounded-xl text-base leading-relaxed focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
             />
 

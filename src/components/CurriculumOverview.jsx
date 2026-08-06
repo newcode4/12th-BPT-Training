@@ -22,29 +22,29 @@ export default function CurriculumOverview({ onSelect }) {
         <ChevronDown size={18} className={`text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
+      {/* 주차마다 카드를 따로 두면 옆줄과 비교하며 훑기 번거로워서, 한 주차 = 한 줄로
+          펼쳐서 라벨과 폴더가 나란히 한눈에 읽히게 한다 */}
       {open && (
-        <div className="p-4 md:p-6 pt-0 grid gap-3 sm:grid-cols-2">
+        <div className="p-4 md:p-6 pt-0 space-y-2">
           {WEEKS.map((w) => (
-            <div key={w.id} className="bg-surface-alt rounded-xl p-3 space-y-2">
-              <p className="text-sm font-extrabold text-gray-100">{w.label} · {w.title}</p>
-              <div className="flex flex-wrap gap-1.5">
+            <div key={w.id} className="flex items-center flex-wrap gap-2 bg-surface-alt rounded-xl p-3">
+              <p className="shrink-0 text-sm font-extrabold text-gray-100 pr-1">{w.label} · {w.title}</p>
+              <button
+                onClick={() => onSelect(w.id, FULL_RECORDING_FOLDER)}
+                className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-brand-light text-brand hover:bg-red-500/20 transition"
+              >
+                <Folder size={11} />
+                {FULL_RECORDING_FOLDER}
+              </button>
+              {(WEEK_CURRICULUM[w.id] || []).map((folder) => (
                 <button
-                  onClick={() => onSelect(w.id, FULL_RECORDING_FOLDER)}
-                  className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-brand-light text-brand hover:bg-red-500/20 transition"
+                  key={folder}
+                  onClick={() => onSelect(w.id, folder)}
+                  className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-surface text-gray-300 hover:bg-white/10 transition"
                 >
-                  <Folder size={11} />
-                  {FULL_RECORDING_FOLDER}
+                  {folder}
                 </button>
-                {(WEEK_CURRICULUM[w.id] || []).map((folder) => (
-                  <button
-                    key={folder}
-                    onClick={() => onSelect(w.id, folder)}
-                    className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-surface text-gray-300 hover:bg-white/10 transition"
-                  >
-                    {folder}
-                  </button>
-                ))}
-              </div>
+              ))}
             </div>
           ))}
         </div>

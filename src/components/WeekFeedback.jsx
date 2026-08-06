@@ -78,6 +78,7 @@ export default function WeekFeedback({ week }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="느낀 점, 부족했던 점, 받은 피드백을 적어보세요"
+        spellCheck={false}
         className="w-full p-3 border border-white/10 rounded-xl text-sm bg-surface focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
         rows="3"
       />

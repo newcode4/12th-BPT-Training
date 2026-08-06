@@ -42,6 +42,7 @@ function ScrapMiniEditor({ scrap, onJump, onUpdate, onDelete }) {
         onChange={(e) => { dirtyRef.current = true; setNote(e.target.value) }}
         placeholder="느낀 점, 개선하고 싶은 점을 적어보세요"
         rows="2"
+        spellCheck={false}
         className="w-full text-sm p-2 border border-white/10 rounded-lg bg-surface resize-none focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
       />
     </div>
@@ -120,6 +121,7 @@ export default function MyYoutubeAnalysis({ videoId, startSeconds, scraps, onAdd
             value={noteDraft.text}
             onChange={(e) => setNoteDraft({ ...noteDraft, text: e.target.value })}
             placeholder="느낀 점, 개선하고 싶은 점을 적어보세요"
+            spellCheck={false}
             className="w-full text-sm p-2.5 border border-white/10 rounded-xl resize-none focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
             rows="2"
           />

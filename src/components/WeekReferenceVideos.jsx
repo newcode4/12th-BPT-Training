@@ -41,6 +41,7 @@ function RefScrapEditor({ scrap, onJump, onUpdate, onDelete }) {
             onChange={(e) => { dirtyRef.current = true; setNote(e.target.value) }}
             placeholder="이 장면에서 배운 점을 적어보세요"
             rows="2"
+            spellCheck={false}
             className="w-full text-sm p-1.5 bg-surface border border-white/10 rounded-lg resize-none focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
           />
           {scrap.author && <p className="text-[10px] text-gray-500">{scrap.author}</p>}
@@ -193,6 +194,7 @@ function ReferenceVideoCard({ video }) {
             value={noteDraft.text}
             onChange={(e) => setNoteDraft({ ...noteDraft, text: e.target.value })}
             placeholder="이 장면에서 배운 점을 적어보세요"
+            spellCheck={false}
             className="w-full text-sm p-2.5 border border-white/10 rounded-xl resize-none focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
             rows="2"
           />

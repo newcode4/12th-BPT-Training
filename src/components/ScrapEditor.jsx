@@ -67,6 +67,7 @@ export default function ScrapEditor({ scrap, onUpdate, onDelete, onPlay, onSetEn
         value={note}
         onChange={handleChange}
         placeholder="이 순간 느낀 점, 개선하고 싶은 점을 자유롭게 적어보세요"
+        spellCheck={false}
         className="w-full text-sm p-2.5 border border-white/10 rounded-xl resize-none focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
         rows="2"
       />
