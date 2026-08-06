@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, ChevronDown, ChevronLeft, ChevronRight, Trash2, Pencil, Check, X, Clock } from 'lucide-react'
+import { Plus, ChevronDown, ChevronLeft, ChevronRight, Trash2, Pencil, Check, X, Clock, Play, CalendarDays } from 'lucide-react'
 import { loadYouTubeAPI, parseYouTubeUrl } from '../utils/youtube'
 import { hmsToSeconds, secondsToHMS, generateUUID } from '../utils/formatters'
 import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
+import { WEEKS } from '../utils/weeks'
 import TimeHMSInput from './TimeHMSInput'
+
+const weekLabelOf = (week) => WEEKS.find((w) => w.id === String(week ?? '0'))?.label || `${week}주차`
 
 function InlinePlayer({ videoId, startSeconds }) {
   const mountRef = useRef(null)
@@ -112,6 +115,39 @@ function StartTimeEditor({ analysis, onUpdateMeta }) {
           >
             적용
           </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 이 시뮬레이션이 몇 주차 것인지 정한다 — 여기서 고른 주차의 왼쪽 패널로 가면
+// (시뮬레이션 분석실 사이드바) 이 영상이 그 주차 소속으로 보인다.
+function WeekEditor({ analysis, onUpdateMeta }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-brand"
+      >
+        <CalendarDays size={13} />
+        {weekLabelOf(analysis.week)}
+      </button>
+      {open && (
+        <div className="mt-2 flex flex-wrap gap-1.5 p-3 bg-surface-alt rounded-xl">
+          {WEEKS.map((w) => (
+            <button
+              key={w.id}
+              onClick={() => { onUpdateMeta(analysis.id, { week: w.id }); setOpen(false) }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                String(analysis.week ?? '0') === w.id ? 'bg-brand text-white' : 'bg-surface text-gray-400 hover:bg-white/10'
+              }`}
+            >
+              {w.label}
+            </button>
+          ))}
         </div>
       )}
     </div>
@@ -235,11 +271,15 @@ function SimulationCard({
           <div className="min-w-0">
             <TitleEditor analysis={analysis} onUpdateMeta={onUpdateMeta} />
             <p className="text-xs text-gray-500 truncate">
-              {index}번째 시뮬레이션 · {new Date(analysis.uploadedAt).toLocaleString('ko-KR')}
+              {index}번째 시뮬레이션 · {weekLabelOf(analysis.week)} · {new Date(analysis.uploadedAt).toLocaleString('ko-KR')}
             </p>
           </div>
         </div>
-        <ChevronDown size={18} className={`shrink-0 text-gray-500 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        {/* 그냥 화살표만 있으면 "누르면 재생된다"는 게 잘 안 와닿아서, 접혀 있을 땐
+            재생 버튼처럼 보이는 원형 아이콘을 눈에 띄게 크게 보여준다 */}
+        <div className="shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-brand-light text-brand transition-transform">
+          {expanded ? <ChevronDown size={20} /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
+        </div>
       </div>
 
       {expanded && (
@@ -247,7 +287,10 @@ function SimulationCard({
           {canPlayInline ? (
             <>
               <InlinePlayer videoId={analysis.videoId} startSeconds={analysis.startSeconds} />
-              <StartTimeEditor analysis={analysis} onUpdateMeta={onUpdateMeta} />
+              <div className="flex flex-wrap gap-4">
+                <WeekEditor analysis={analysis} onUpdateMeta={onUpdateMeta} />
+                <StartTimeEditor analysis={analysis} onUpdateMeta={onUpdateMeta} />
+              </div>
             </>
           ) : (
             <p className="text-xs text-gray-500 bg-surface-alt rounded-xl p-3">
@@ -292,7 +335,7 @@ function SimulationCard({
 
 // 내가 등록한 시뮬레이션을 주차/폴더 상관없이 순서대로 모아 보여준다.
 // 링크만 붙여넣으면 바로 등록되고, 클릭하면 그 자리에서 펼쳐져 재생 + 피드백 작성까지 끝낼 수 있다.
-export default function MySimulationsOverview({ analyses, author, onAddLink, onUpdateMeta, onDelete }) {
+export default function MySimulationsOverview({ analyses, author, onAddLink, onUpdateMeta, onDelete, hideAddForm = false }) {
   const [linkInput, setLinkInput] = useState('')
   const [addHmsOpen, setAddHmsOpen] = useState(false)
   const [addHms, setAddHms] = useState({ hours: 0, minutes: 0, seconds: 0 })
@@ -321,6 +364,7 @@ export default function MySimulationsOverview({ analyses, author, onAddLink, onU
 
   return (
     <div className="space-y-3">
+      {!hideAddForm && (
       <div className="space-y-2">
         <div className="flex gap-2">
           <input
@@ -359,6 +403,7 @@ export default function MySimulationsOverview({ analyses, author, onAddLink, onU
           </div>
         )}
       </div>
+      )}
 
       <div className="space-y-2">
         {sorted.map((a, i) => (

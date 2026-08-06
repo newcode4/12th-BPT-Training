@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   MessageCircle, AlertTriangle, MessageSquare, Star, ThumbsUp, Mic, PenLine,
-  PenSquare, ArrowLeft, Trash2, Loader2, CloudOff, Search, Check, ChevronLeft, ChevronRight
+  PenSquare, ArrowLeft, Trash2, Loader2, CloudOff, Search, Check, ChevronLeft, ChevronRight, RefreshCw
 } from 'lucide-react'
 import { formatDate, generateUUID } from '../utils/formatters'
 import { supabase, supabaseConfigured } from '../utils/supabase'
@@ -29,7 +29,6 @@ function mapAnswer(a) {
     content: a.content,
     author: a.author,
     likes: a.likes,
-    isPinned: a.is_pinned,
     createdAt: a.created_at,
   }
 }
@@ -97,6 +96,9 @@ export default function QACommunity({ author, onLogout }) {
   const [newTopic, setNewTopic] = useState('')
   const [showContentField, setShowContentField] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const [editingAnswerId, setEditingAnswerId] = useState(null)
+  const [editAnswerText, setEditAnswerText] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
   const restoredViewRef = useRef(false)
 
   const loadQuestions = async () => {
@@ -117,6 +119,21 @@ export default function QACommunity({ author, onLogout }) {
       setLoadError(null)
     }
     setLoading(false)
+  }
+
+  // 전체 로딩 스피너 없이 목록만 새로고침 — 새 글이 올라왔는지 가볍게 다시 확인할 때 쓴다
+  const refreshQuestions = async () => {
+    if (!supabaseConfigured) return
+    setRefreshing(true)
+    const { data, error } = await supabase
+      .from('questions')
+      .select('*, answers(*)')
+      .order('created_at', { ascending: false })
+    if (!error) {
+      setQuestions((data || []).map(mapQuestion))
+      setLoadError(null)
+    }
+    setRefreshing(false)
   }
 
   useEffect(() => {
@@ -325,24 +342,29 @@ export default function QACommunity({ author, onLogout }) {
     setQuestions(questions.map(q => q.id === selectedQuestion.id ? updatedQuestion : q))
   }
 
-  const handlePinAnswer = async (answerId) => {
-    if (!selectedQuestion) return
-    const target = selectedQuestion.answers.find(a => a.id === answerId)
-    if (!target) return
-    const nextPinned = !target.isPinned
+  const canModerate = (item) => admin || item.author === author
 
-    await supabase.from('answers').update({ is_pinned: false }).eq('question_id', selectedQuestion.id)
-    await supabase.from('answers').update({ is_pinned: nextPinned }).eq('id', answerId)
+  const handleStartEditAnswer = (answer) => {
+    setEditingAnswerId(answer.id)
+    setEditAnswerText(answer.content)
+  }
 
+  const handleSaveAnswerEdit = async (answerId) => {
+    const text = editAnswerText.trim()
+    if (!text || !selectedQuestion) return
+    const { error } = await supabase.from('answers').update({ content: text }).eq('id', answerId)
+    if (error) {
+      alert('답변 수정에 실패했어요: ' + error.message)
+      return
+    }
     const updatedQuestion = {
       ...selectedQuestion,
-      answers: selectedQuestion.answers.map(a => ({ ...a, isPinned: a.id === answerId ? nextPinned : false }))
+      answers: selectedQuestion.answers.map(a => a.id === answerId ? { ...a, content: text } : a)
     }
     setSelectedQuestion(updatedQuestion)
     setQuestions(questions.map(q => q.id === selectedQuestion.id ? updatedQuestion : q))
+    setEditingAnswerId(null)
   }
-
-  const canModerate = (item) => admin || item.author === author
 
   const handleDeleteAnswer = async (answerId) => {
     if (!selectedQuestion) return
@@ -425,14 +447,11 @@ export default function QACommunity({ author, onLogout }) {
   const pagedQuestions = visibleQuestions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   // 실제로 글이 존재하는 유형만 필터로 노출해 빈 칩이 쌓이지 않게 한다
   const usedTopics = TOPICS.filter(t => questions.some(q => q.topic === t))
-  const pinnedAnswers = (selectedQuestion?.answers || []).filter(a => a.isPinned)
-  const unpinnedAnswers = (selectedQuestion?.answers || []).filter(a => !a.isPinned)
-  const sortedUnpinned = [...unpinnedAnswers].sort((a, b) => (
+  const sortedAnswers = [...(selectedQuestion?.answers || [])].sort((a, b) => (
     answerSort === 'recommended'
       ? (b.likes - a.likes) || (new Date(b.createdAt) - new Date(a.createdAt))
       : new Date(b.createdAt) - new Date(a.createdAt)
   ))
-  const sortedAnswers = [...pinnedAnswers, ...sortedUnpinned]
 
   const categoryBadge = (category) => {
     const isUnexpected = category !== 'general'
@@ -565,14 +584,25 @@ export default function QACommunity({ author, onLogout }) {
 
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-400">{visibleQuestions.length}개의 글</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="text-sm p-2 border border-white/10 rounded-lg bg-surface-alt"
-              >
-                <option value="newest">최신순</option>
-                <option value="popular">인기순</option>
-              </select>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={refreshQuestions}
+                  disabled={refreshing}
+                  title="새로고침"
+                  className="flex items-center gap-1 text-xs font-bold text-gray-400 hover:text-brand bg-surface-alt hover:bg-white/10 px-3 py-2 rounded-lg border border-white/10 transition disabled:opacity-50"
+                >
+                  <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+                  새로고침
+                </button>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="text-sm p-2 border border-white/10 rounded-lg bg-surface-alt"
+                >
+                  <option value="newest">최신순</option>
+                  <option value="popular">인기순</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -892,23 +922,41 @@ export default function QACommunity({ author, onLogout }) {
               </p>
             )}
 
-            {sortedAnswers.map((answer) => (
-              <div
-                key={answer.id}
-                className={`p-4 rounded-2xl border ${
-                  answer.isPinned ? 'bg-amber-500/10 border-amber-500/30' : 'bg-surface-alt border-white/10'
-                }`}
-              >
-                {answer.isPinned && (
-                  <div className="flex items-center gap-1.5 text-amber-400 text-sm font-bold mb-2">
-                    <Star size={13} fill="currentColor" />
-                    베스트 대처법
-                  </div>
-                )}
+            {sortedAnswers.map((answer) => {
+              const isEditing = editingAnswerId === answer.id
+              return (
+              <div key={answer.id} className="p-4 rounded-2xl border bg-surface-alt border-white/10">
                 <p className="text-xs text-gray-500 mb-2">
                   {answer.author} · {formatDate(answer.createdAt)}
                 </p>
-                <p className="text-gray-200 whitespace-pre-wrap mb-3 leading-relaxed">{answer.content}</p>
+                {isEditing ? (
+                  <div className="space-y-2 mb-3">
+                    <textarea
+                      value={editAnswerText}
+                      onChange={(e) => setEditAnswerText(e.target.value)}
+                      spellCheck={false}
+                      rows="4"
+                      autoFocus
+                      className="w-full p-3 bg-surface border border-brand rounded-xl text-gray-200 leading-relaxed focus:outline-none"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setEditingAnswerId(null)}
+                        className="flex-1 bg-white/10 hover:bg-white/15 text-gray-300 font-bold py-2 rounded-lg text-sm transition"
+                      >
+                        취소
+                      </button>
+                      <button
+                        onClick={() => handleSaveAnswerEdit(answer.id)}
+                        className="flex-1 bg-brand hover:bg-brand-dark text-white font-bold py-2 rounded-lg text-sm transition"
+                      >
+                        저장
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-gray-200 whitespace-pre-wrap mb-3 leading-relaxed">{answer.content}</p>
+                )}
                 <div className="flex gap-2 flex-wrap">
                   <button
                     onClick={() => handleLikeAnswer(answer.id)}
@@ -922,35 +970,34 @@ export default function QACommunity({ author, onLogout }) {
                     {answer.likes}
                   </button>
                   <button
-                    onClick={() => handlePinAnswer(answer.id)}
-                    className={`flex items-center gap-1 text-sm font-bold px-3 py-1.5 rounded-lg border active:scale-95 transition ${
-                      answer.isPinned
-                        ? 'text-amber-400 bg-surface border-amber-500/30'
-                        : 'text-gray-400 bg-surface border-white/10'
-                    }`}
-                  >
-                    <Star size={13} fill={answer.isPinned ? 'currentColor' : 'none'} />
-                    {answer.isPinned ? '고정됨' : '고정'}
-                  </button>
-                  <button
                     onClick={() => setPracticeAnswer(answer.content)}
                     className="flex items-center gap-1 text-sm font-bold bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded-lg transition active:scale-95"
                   >
                     <Mic size={13} />
                     연습
                   </button>
-                  {canModerate(answer) && (
-                    <button
-                      onClick={() => handleDeleteAnswer(answer.id)}
-                      className="flex items-center gap-1 text-sm font-bold text-gray-500 hover:text-red-500 bg-surface px-3 py-1.5 rounded-lg border border-white/10 active:scale-95 transition"
-                    >
-                      <Trash2 size={13} />
-                      삭제
-                    </button>
+                  {canModerate(answer) && !isEditing && (
+                    <>
+                      <button
+                        onClick={() => handleStartEditAnswer(answer)}
+                        className="flex items-center gap-1 text-sm font-bold text-gray-400 hover:text-brand bg-surface px-3 py-1.5 rounded-lg border border-white/10 active:scale-95 transition"
+                      >
+                        <PenSquare size={13} />
+                        수정
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAnswer(answer.id)}
+                        className="flex items-center gap-1 text-sm font-bold text-gray-500 hover:text-red-500 bg-surface px-3 py-1.5 rounded-lg border border-white/10 active:scale-95 transition"
+                      >
+                        <Trash2 size={13} />
+                        삭제
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
 
           <hr className="border-white/10" />

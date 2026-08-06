@@ -6,7 +6,7 @@ import Footer from './components/Footer'
 import SimulatorShortcut from './components/SimulatorShortcut'
 import FeedbackDigest from './components/FeedbackDigest'
 import UnansweredNudge from './components/UnansweredNudge'
-import LiveActivityToast from './components/LiveActivityToast'
+import CommunityPulse from './components/CommunityPulse'
 import VideoAnalysisRoom from './pages/VideoAnalysisRoom'
 import QACommunity from './pages/QACommunity'
 import PracticeRoom from './pages/PracticeRoom'
@@ -114,7 +114,7 @@ export default function App() {
         author={author}
         onGoToPractice={() => { setCurrentPage('practice'); setPracticeInitialFilter('unwritten') }}
       />
-      <LiveActivityToast />
+      <CommunityPulse author={author} />
 
       {showProfile && (
         <ProfileModal
