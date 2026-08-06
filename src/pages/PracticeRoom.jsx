@@ -46,7 +46,7 @@ export default function PracticeRoom() {
   const [scriptsLoaded, setScriptsLoaded] = useState(false)
   const author = localStorage.getItem('qa-author') || '익명'
 
-  const [nudgeQuestion, setNudgeQuestion] = useState(null)
+  const [showNudge, setShowNudge] = useState(false)
   const [nudgeCount, setNudgeCount] = useState(0)
   const nudgeShownRef = useRef(false)
 
@@ -61,15 +61,21 @@ export default function PracticeRoom() {
       .finally(() => setScriptsLoaded(true))
   }, [author])
 
-  // 페이지에 처음 들어왔을 때 아직 안 쓴 원고가 있으면 한 번 알려주고 바로 쓰도록 유도한다.
+  // 페이지에 처음 들어왔을 때 아직 안 쓴 원고가 있으면 한 번 알려준다.
+  // 특정 질문을 바로 열어버리진 않고, 미작성 목록으로 보내서 직접 고르게 한다.
   useEffect(() => {
     if (nudgeShownRef.current || loading || !scriptsLoaded) return
     const unwritten = questions.filter((q) => !scripts[q.id]?.text)
     if (unwritten.length === 0) return
     nudgeShownRef.current = true
     setNudgeCount(unwritten.length)
-    setNudgeQuestion(unwritten[0])
+    setShowNudge(true)
   }, [loading, scriptsLoaded, questions, scripts])
+
+  const handleGoToUnwritten = () => {
+    setShowNudge(false)
+    setScriptFilter('unwritten')
+  }
 
   useEffect(() => {
     if (!supabaseConfigured) {
@@ -222,13 +228,6 @@ export default function PracticeRoom() {
           ))}
         </div>
 
-        {/* 작성 여부 필터 — 전체를 다 훑지 않고 안 쓴 것만/쓴 것만 바로 걸러볼 수 있게 */}
-        <div className="flex gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
-          <Chip active={scriptFilter === 'all'} onClick={() => setScriptFilter('all')}>전체</Chip>
-          <Chip active={scriptFilter === 'unwritten'} onClick={() => setScriptFilter('unwritten')}>미작성</Chip>
-          <Chip active={scriptFilter === 'written'} onClick={() => setScriptFilter('written')}>작성함</Chip>
-        </div>
-
         {/* 유형 필터 */}
         {usedTopics.length > 0 && (
           <div className="flex gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
@@ -252,7 +251,27 @@ export default function PracticeRoom() {
         </div>
       ) : (
         <div className="stagger space-y-2">
-          <p className="text-sm text-gray-400 px-1">{visible.length}개의 돌발질문</p>
+          <div className="flex items-center justify-between px-1 gap-2">
+            <p className="text-sm text-gray-400 shrink-0">{visible.length}개의 돌발질문</p>
+            {/* 작성 여부 토글 — 세로로 필터 줄을 하나 더 늘리는 대신 여기 오른쪽에 붙인다 */}
+            <div className="inline-flex shrink-0 rounded-full bg-surface-alt p-0.5 text-[11px] font-bold">
+              {[
+                { id: 'all', label: '전체' },
+                { id: 'unwritten', label: '미작성' },
+                { id: 'written', label: '작성함' },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setScriptFilter(f.id)}
+                  className={`px-2.5 py-1 rounded-full transition ${
+                    scriptFilter === f.id ? 'bg-brand text-white' : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
           {pagedVisible.map((q) => {
             const hasScript = Boolean(scripts[q.id]?.text)
             const isExpanded = expandedIds.has(q.id)
@@ -335,10 +354,10 @@ export default function PracticeRoom() {
         </div>
       )}
 
-      {nudgeQuestion && createPortal(
+      {showNudge && createPortal(
         <div
           className="anim-fade fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setNudgeQuestion(null)}
+          onClick={() => setShowNudge(false)}
         >
           <div
             className="anim-modal bg-surface rounded-2xl shadow-xl w-full max-w-sm p-6 border border-white/10 text-center space-y-3"
@@ -349,24 +368,21 @@ export default function PracticeRoom() {
             </div>
             <div>
               <p className="font-extrabold text-lg">아직 답변하지 않은 돌발질문이 있습니다</p>
-              <p className="text-sm text-gray-400 mt-1">{nudgeCount}개가 남아있어요. 지금 하나 써볼까요?</p>
+              <p className="text-sm text-gray-400 mt-1">{nudgeCount}개가 남아있어요. 미작성 목록으로 가볼까요?</p>
             </div>
-            <p className="text-xs text-gray-500 bg-surface-alt rounded-xl p-3 line-clamp-2">
-              {nudgeQuestion.title}
-            </p>
             <div className="flex gap-2 pt-1">
               <button
-                onClick={() => setNudgeQuestion(null)}
+                onClick={() => setShowNudge(false)}
                 className="flex-1 bg-white/10 hover:bg-white/15 text-gray-300 font-bold py-2.5 rounded-xl text-sm transition"
               >
                 나중에
               </button>
               <button
-                onClick={() => { openPractice(nudgeQuestion, false); setNudgeQuestion(null) }}
+                onClick={handleGoToUnwritten}
                 className="flex-1 flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
               >
                 <PenLine size={14} />
-                답변 작성하기
+                답변 작성하러 가기
               </button>
             </div>
           </div>
