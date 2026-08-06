@@ -224,7 +224,15 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
       {open && (
         <div className="p-4 md:p-6 pt-0 space-y-4">
           {admin && (
-            <AdminAddReplayForm viewFilter={weekFilter} onAdded={(r) => setAdminReplays([r, ...adminReplays])} />
+            <AdminAddReplayForm
+              viewFilter={weekFilter}
+              onAdded={(r) => {
+                setAdminReplays([r, ...adminReplays])
+                // 추가한 회차가 지금 보고 있는 필터에 속하면 바로 재생 화면에 띄워서
+                // "추가했는데 반영이 안 됐다"는 오해가 없게 한다.
+                if (matchesWeekFilter(weekFilter, r.week)) setActiveVideoId(r.videoId)
+              }}
+            />
           )}
 
           {/* 주차 필터 */}
@@ -244,27 +252,59 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
             ))}
           </div>
 
-          {randomMode ? (
+          {/*
+            랜덤 범위 필터도 뽑기 버튼 하나 뒤에 영상 1개만 숨겨두면, 관리자가 회차를 추가해도
+            "반영이 안 됐다"고 오해하기 쉽다 (다시 뽑기 전엔 새로 넣은 영상이 안 보이니까).
+            그래서 랜덤 범위에서도 날짜 목록을 그대로 보여주고, 뽑기는 보조 기능으로 둔다.
+          */}
+          {/* 날짜 토글 필터 */}
+          <div className="flex flex-wrap gap-2">
+            {replays.map((r) => (
+              <span key={r.id || r.videoId} className="inline-flex items-center">
+                <button
+                  onClick={() => setActiveVideoId(r.videoId)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition ${
+                    activeVideoId === r.videoId
+                      ? 'bg-brand text-white'
+                      : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                  } ${admin && r.id ? 'rounded-r-none' : ''}`}
+                >
+                  {formatArchiveDate(r.date)}
+                </button>
+                {admin && r.id && (
+                  <button
+                    onClick={() => handleDelete(r.id)}
+                    className="px-1.5 py-1.5 rounded-r-lg bg-surface-alt hover:bg-red-500/20 text-gray-500 hover:text-red-400 border-l border-white/10"
+                    title="이 회차 삭제"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                )}
+              </span>
+            ))}
+            {replays.length === 0 && (
+              <p className="text-xs text-gray-500 py-2">이 범위에는 아직 등록된 회차가 없어요</p>
+            )}
+          </div>
+
+          {randomMode && (
+            <button
+              onClick={() => drawRandom(replays)}
+              className="w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
+            >
+              <Shuffle size={15} />
+              랜덤으로 하나 뽑기
+            </button>
+          )}
+
+          {activeVideoId ? (
             <div className="space-y-2">
-              {activeVideoId ? (
-                <>
-                  <div className="aspect-video rounded-xl overflow-hidden bg-black">
-                    <div ref={mountRef} className="w-full h-full" />
-                  </div>
-                  {activeReplay && (
-                    <p className="text-center text-xs text-gray-500">{formatArchiveDate(activeReplay.date)} 회차</p>
-                  )}
-                </>
-              ) : (
-                <p className="text-xs text-gray-500 text-center py-4">이 범위에는 아직 등록된 회차가 없어요</p>
+              <div className="aspect-video rounded-xl overflow-hidden bg-black">
+                <div ref={mountRef} className="w-full h-full" />
+              </div>
+              {randomMode && activeReplay && (
+                <p className="text-center text-xs text-gray-500">{formatArchiveDate(activeReplay.date)} 회차</p>
               )}
-              <button
-                onClick={() => drawRandom(replays)}
-                className="w-full flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
-              >
-                <Shuffle size={15} />
-                다시 뽑기
-              </button>
               {onAddToAnalysis && activeReplay && (
                 <button
                   onClick={() => onAddToAnalysis(activeReplay)}
@@ -275,56 +315,10 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
                 </button>
               )}
             </div>
-          ) : (
-            <>
-              {/* 날짜 토글 필터 */}
-              <div className="flex flex-wrap gap-2">
-                {replays.map((r) => (
-                  <span key={r.id || r.videoId} className="inline-flex items-center">
-                    <button
-                      onClick={() => setActiveVideoId(r.videoId)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition ${
-                        activeVideoId === r.videoId
-                          ? 'bg-brand text-white'
-                          : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
-                      } ${admin && r.id ? 'rounded-r-none' : ''}`}
-                    >
-                      {formatArchiveDate(r.date)}
-                    </button>
-                    {admin && r.id && (
-                      <button
-                        onClick={() => handleDelete(r.id)}
-                        className="px-1.5 py-1.5 rounded-r-lg bg-surface-alt hover:bg-red-500/20 text-gray-500 hover:text-red-400 border-l border-white/10"
-                        title="이 회차 삭제"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    )}
-                  </span>
-                ))}
-              </div>
-
-              {activeVideoId ? (
-                <div className="space-y-2">
-                  <div className="aspect-video rounded-xl overflow-hidden bg-black">
-                    <div ref={mountRef} className="w-full h-full" />
-                  </div>
-                  {onAddToAnalysis && activeReplay && (
-                    <button
-                      onClick={() => onAddToAnalysis(activeReplay)}
-                      className="w-full flex items-center justify-center gap-1.5 bg-brand-light hover:bg-red-500/20 text-brand font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
-                    >
-                      <FolderPlus size={15} />
-                      이 회차 내 시뮬레이션 분석에 추가
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <p className="text-xs text-gray-500 text-center py-4">
-                  위 날짜를 누르면 바로 그 회차 영상을 볼 수 있어요
-                </p>
-              )}
-            </>
+          ) : replays.length > 0 && (
+            <p className="text-xs text-gray-500 text-center py-4">
+              위 날짜를 누르면 바로 그 회차 영상을 볼 수 있어요
+            </p>
           )}
         </div>
       )}

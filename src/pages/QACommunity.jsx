@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
   MessageCircle, AlertTriangle, MessageSquare, Star, ThumbsUp, Mic, PenLine,
-  PenSquare, ArrowLeft, Trash2, Loader2, CloudOff, Search, Check
+  PenSquare, ArrowLeft, Trash2, Loader2, CloudOff, Search, Check, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { formatDate, generateUUID } from '../utils/formatters'
 import { supabase, supabaseConfigured } from '../utils/supabase'
@@ -19,6 +19,8 @@ const CATEGORIES = [
   { id: 'unexpected', label: '돌발질문' },
   { id: 'general', label: '일반질문' },
 ]
+
+const PAGE_SIZE = 15
 
 function mapAnswer(a) {
   return {
@@ -76,6 +78,7 @@ export default function QACommunity({ author, onLogout }) {
   const [weekFilter, setWeekFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState('newest')
+  const [page, setPage] = useState(1)
   const [selectedQuestion, setSelectedQuestion] = useState(null)
   const [answerContent, setAnswerContent] = useState('')
   const [practiceAnswer, setPracticeAnswer] = useState(null)
@@ -117,6 +120,10 @@ export default function QACommunity({ author, onLogout }) {
   useEffect(() => {
     loadQuestions()
   }, [])
+
+  useEffect(() => {
+    setPage(1)
+  }, [categoryFilter, topicFilter, weekFilter, searchQuery, sortBy])
 
   // 목록에서 스크롤을 내린 채로 글을 선택하면, 상세 화면도 그 위치 그대로 이어져
   // 제목/본문 윗부분이 화면 위로 잘려 보인다. 화면(글쓰기/상세)이 바뀔 때는 맨 위로 올린다.
@@ -371,10 +378,22 @@ export default function QACommunity({ author, onLogout }) {
         return bLikes - aLikes
       })
     }
+    // 돌발질문만 볼 때는 아직 원고를 안 쓴 글을 위로 올린다 — 뭐부터 연습해야 할지
+    // 한눈에 보이게. sort는 안정 정렬이라 같은 그룹 안에서는 위 정렬 순서가 유지된다.
+    if (categoryFilter === 'unexpected') {
+      list.sort((a, b) => {
+        const aDone = Boolean(scripts[a.id]?.text)
+        const bDone = Boolean(scripts[b.id]?.text)
+        if (aDone === bDone) return 0
+        return aDone ? 1 : -1
+      })
+    }
     return list
   }
 
   const visibleQuestions = getVisibleQuestions()
+  const totalPages = Math.max(1, Math.ceil(visibleQuestions.length / PAGE_SIZE))
+  const pagedQuestions = visibleQuestions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   // 실제로 글이 존재하는 유형만 필터로 노출해 빈 칩이 쌓이지 않게 한다
   const usedTopics = TOPICS.filter(t => questions.some(q => q.topic === t))
   const pinnedAnswers = (selectedQuestion?.answers || []).filter(a => a.isPinned)
@@ -530,18 +549,35 @@ export default function QACommunity({ author, onLogout }) {
 
           {/* 질문 목록 */}
           <div className="stagger space-y-2">
-            {visibleQuestions.map((q) => {
+            {pagedQuestions.map((q) => {
               const best = getBestAnswerOf(q)
+              const isUnexpected = (q.category || 'unexpected') !== 'general'
+              const hasScript = isUnexpected && Boolean(scripts[q.id]?.text)
               return (
                 <button
                   key={q.id}
                   onClick={() => { setSelectedQuestion(q); setView('detail') }}
-                  className="lift w-full text-left p-4 rounded-2xl bg-surface border border-white/10 shadow-card hover:border-brand/40"
+                  className={`lift w-full text-left p-4 rounded-2xl bg-surface border border-white/10 shadow-card hover:border-brand/40 ${
+                    isUnexpected && hasScript ? 'opacity-70' : ''
+                  }`}
                 >
                   <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                     {categoryBadge(q.category)}
                     {q.topic && metaBadge(q.topic)}
                     {q.week && metaBadge(WEEKS.find(w => w.id === q.week)?.label || `${q.week}주차`)}
+                    {isUnexpected && (
+                      hasScript ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
+                          <Check size={10} />
+                          스크립트 작성함
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
+                          <PenLine size={10} />
+                          스크립트 미작성
+                        </span>
+                      )
+                    )}
                   </div>
                   <h4 className="font-bold leading-snug">{q.title}</h4>
                   <p className="text-xs text-gray-500 mt-1">
@@ -560,6 +596,26 @@ export default function QACommunity({ author, onLogout }) {
               <div className="text-center py-12 bg-surface rounded-2xl border border-white/10 space-y-1">
                 <p className="text-gray-400 font-bold">아직 등록된 글이 없어요</p>
                 <p className="text-xs text-gray-600">오른쪽 아래 글쓰기 버튼으로 첫 질문을 남겨보세요</p>
+              </div>
+            )}
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="p-2 rounded-lg bg-surface-alt text-gray-400 disabled:opacity-30 hover:bg-white/10 transition"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="text-xs font-bold text-gray-400">{page} / {totalPages}</span>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="p-2 rounded-lg bg-surface-alt text-gray-400 disabled:opacity-30 hover:bg-white/10 transition"
+                >
+                  <ChevronRight size={16} />
+                </button>
               </div>
             )}
           </div>

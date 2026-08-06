@@ -47,6 +47,9 @@ function setSession(session) {
 
 export function clearSession() {
   localStorage.removeItem(SESSION_KEY)
+  // qa-author를 안 지우면, 로그아웃 뒤 같은 기기에서 다음 사람이 로그인하기 전
+  // 잠깐이라도 이전 사람 이름으로 원고/추천 같은 개인 기록이 저장될 여지가 남는다.
+  localStorage.removeItem('qa-author')
 }
 
 // 이미 허용 대수만큼 꽉 찬 이름 목록. 명단에서 빼주면 헛클릭이 줄어든다.

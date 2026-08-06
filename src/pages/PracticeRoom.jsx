@@ -87,6 +87,14 @@ export default function PracticeRoom() {
     if (s && !q.title.toLowerCase().includes(s)) return false
     return true
   })
+  // 아직 원고를 안 쓴 질문을 위로 올려서 뭐부터 연습할지 한눈에 보이게 한다.
+  // sort는 안정 정렬이라 같은 그룹 안에서는 최신순이 그대로 유지된다.
+  visible.sort((a, b) => {
+    const aDone = Boolean(scripts[a.id]?.text)
+    const bDone = Boolean(scripts[b.id]?.text)
+    if (aDone === bDone) return 0
+    return aDone ? 1 : -1
+  })
 
   const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE))
   const pagedVisible = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -225,7 +233,7 @@ export default function PracticeRoom() {
             <div
               key={q.id}
               onClick={() => openPractice(q, false)}
-              className="lift p-4 bg-surface rounded-2xl border border-white/10 shadow-card cursor-pointer"
+              className={`lift p-4 bg-surface rounded-2xl border border-white/10 shadow-card cursor-pointer ${hasScript ? 'opacity-70' : ''}`}
             >
               <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-brand-light text-brand">
