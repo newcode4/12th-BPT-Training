@@ -152,14 +152,15 @@ export default function CommunityPulse({ author, raised = false }) {
         ))}
       </div>
 
-      {/* 응원 보내기 버튼 — 시뮬레이터 바로가기 바로 위에 쌓아서, 같은 자리에서 이어지는 액션처럼 보이게 */}
+      {/* 응원 보내기 버튼 — 시뮬레이터 바로가기 바로 위, 적당한 간격을 두고 쌓는다.
+          둘 다 빨간 계열이면 붙여놨을 때 구분이 안 가서, 응원 버튼은 앰버색으로 차별화한다 */}
       <div
-        className={`fixed ${raised ? 'bottom-64' : 'bottom-44'} md:bottom-48 right-4 md:right-8 z-20`}
+        className={`fixed ${raised ? 'bottom-60' : 'bottom-40'} md:bottom-44 right-4 md:right-8 z-20`}
       >
         <button
           onClick={sendCheer}
           title="응원 보내기"
-          className="shine anim-pop relative flex items-center justify-center gap-1.5 bg-surface/95 backdrop-blur border border-brand/40 hover:border-brand hover:bg-brand text-brand hover:text-white font-bold w-12 h-12 md:w-auto md:h-auto md:pl-3.5 md:pr-4 md:py-2.5 rounded-full shadow-floating transition-all duration-300 hover:scale-105 active:scale-95"
+          className="shine anim-pop relative flex items-center justify-center gap-1.5 bg-surface/95 backdrop-blur border border-amber-400/40 hover:border-amber-400 hover:bg-amber-500 text-amber-400 hover:text-white font-bold w-12 h-12 md:w-auto md:h-auto md:pl-3.5 md:pr-4 md:py-2.5 rounded-full shadow-floating transition-all duration-300 hover:scale-105 active:scale-95"
         >
           <PartyPopper size={16} className="shrink-0" />
           <span className="hidden md:inline text-xs whitespace-nowrap">응원 보내기</span>
