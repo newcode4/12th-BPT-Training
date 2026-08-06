@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Plus, ChevronDown, ChevronLeft, ChevronRight, Trash2, Pencil, Check, X, Clock } from 'lucide-react'
 import { loadYouTubeAPI, parseYouTubeUrl } from '../utils/youtube'
-import { hmsToSeconds, secondsToHMS } from '../utils/formatters'
+import { hmsToSeconds, secondsToHMS, generateUUID } from '../utils/formatters'
+import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 import TimeHMSInput from './TimeHMSInput'
 
 function InlinePlayer({ videoId, startSeconds }) {
@@ -117,19 +118,58 @@ function StartTimeEditor({ analysis, onUpdateMeta }) {
   )
 }
 
-function FeedbackSection({ analysis, onAddFeedback, onDeleteFeedback }) {
+// "내 피드백"은 시뮬레이션 전용 저장소가 아니라, 인사이트&피드백 쪽 "피드백 모음"과
+// 완전히 같은 'feedback' 레코드를 쓴다 — 여기서 쓴 게 피드백 모음에도 그대로 뜨고,
+// 거기서 지우면 여기서도 사라진다. week만 이 시뮬레이션의 week를 그대로 물려받고,
+// analysisId로 어느 시뮬레이션 것인지만 구분한다.
+function FeedbackSection({ analysis, author }) {
+  const [entries, setEntries] = useState([])
+  const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
-  const entries = analysis.feedbackList || []
+
+  useEffect(() => {
+    let cancelled = false
+    listRecords('feedback', { week: analysis.week, author })
+      .then((rows) => {
+        if (cancelled) return
+        setEntries(
+          rows
+            .filter((r) => r.analysisId === analysis.id)
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        )
+        setLoading(false)
+      })
+      .catch((e) => { console.error('피드백 불러오기 실패', e); setLoading(false) })
+    return () => { cancelled = true }
+  }, [analysis.id, analysis.week, author])
 
   const handleAdd = () => {
     if (!text.trim()) return
-    onAddFeedback(analysis.id, text.trim())
+    const entry = {
+      id: generateUUID(),
+      week: analysis.week,
+      category: 'self',
+      analysisId: analysis.id,
+      text: text.trim(),
+      author,
+      createdAt: new Date().toISOString(),
+    }
+    setEntries([entry, ...entries])
     setText('')
+    putRecord('feedback', entry, { author, week: analysis.week })
+      .catch((e) => console.error('피드백 저장 실패', e))
+  }
+
+  const handleDelete = (id) => {
+    setEntries(entries.filter((e) => e.id !== id))
+    removeRecord('feedback', id).catch((e) => console.error('피드백 삭제 실패', e))
   }
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-bold text-gray-400">내 피드백</p>
+      <p className="text-xs font-bold text-gray-400">
+        내 피드백 <span className="font-normal text-gray-500">(인사이트 & 피드백의 "피드백 모음"과 연동돼요)</span>
+      </p>
       <div className="flex gap-2">
         <input
           type="text"
@@ -147,7 +187,7 @@ function FeedbackSection({ analysis, onAddFeedback, onDeleteFeedback }) {
         </button>
       </div>
 
-      {entries.length > 0 && (
+      {!loading && entries.length > 0 && (
         <div className="space-y-1.5">
           <p className="text-xs font-bold text-gray-500">이전 피드백</p>
           {entries.map((f) => (
@@ -157,7 +197,7 @@ function FeedbackSection({ analysis, onAddFeedback, onDeleteFeedback }) {
                 <p className="text-[11px] text-gray-500 mt-0.5">{new Date(f.createdAt).toLocaleString('ko-KR')}</p>
               </div>
               <button
-                onClick={() => onDeleteFeedback(analysis.id, f.id)}
+                onClick={() => handleDelete(f.id)}
                 className="shrink-0 text-gray-600 hover:text-red-500"
               >
                 <X size={13} />
@@ -172,11 +212,10 @@ function FeedbackSection({ analysis, onAddFeedback, onDeleteFeedback }) {
 
 function SimulationCard({
   index, analysis, expanded, onToggle,
-  onUpdateMeta, onAddFeedback, onDeleteFeedback, onDelete,
+  onUpdateMeta, onDelete, author,
   hasPrev, hasNext, onPrev, onNext,
 }) {
   const canPlayInline = analysis.source === 'youtube'
-  const feedbackCount = analysis.feedbackList?.length || 0
 
   return (
     <div className="border border-white/10 rounded-2xl overflow-hidden bg-surface">
@@ -197,7 +236,6 @@ function SimulationCard({
             <TitleEditor analysis={analysis} onUpdateMeta={onUpdateMeta} />
             <p className="text-xs text-gray-500 truncate">
               {index}번째 시뮬레이션 · {new Date(analysis.uploadedAt).toLocaleString('ko-KR')}
-              {feedbackCount > 0 ? ` · 피드백 ${feedbackCount}개` : ''}
             </p>
           </div>
         </div>
@@ -213,11 +251,11 @@ function SimulationCard({
             </>
           ) : (
             <p className="text-xs text-gray-500 bg-surface-alt rounded-xl p-3">
-              업로드한 파일은 여기서 바로 재생할 수 없어요. 아래 "내 시뮬레이션 분석"에서 파일을 다시 올리면 이어서 볼 수 있어요.
+              업로드한 파일은 여기서 바로 재생할 수 없어요. 아래 "음성 녹음 분석 피드백"에서 파일을 다시 올리면 이어서 볼 수 있어요.
             </p>
           )}
 
-          <FeedbackSection analysis={analysis} onAddFeedback={onAddFeedback} onDeleteFeedback={onDeleteFeedback} />
+          <FeedbackSection analysis={analysis} author={author} />
 
           <div className="flex items-center justify-between pt-1 border-t border-white/5">
             <button
@@ -254,7 +292,7 @@ function SimulationCard({
 
 // 내가 등록한 시뮬레이션을 주차/폴더 상관없이 순서대로 모아 보여준다.
 // 링크만 붙여넣으면 바로 등록되고, 클릭하면 그 자리에서 펼쳐져 재생 + 피드백 작성까지 끝낼 수 있다.
-export default function MySimulationsOverview({ analyses, onAddLink, onUpdateMeta, onAddFeedback, onDeleteFeedback, onDelete }) {
+export default function MySimulationsOverview({ analyses, author, onAddLink, onUpdateMeta, onDelete }) {
   const [linkInput, setLinkInput] = useState('')
   const [addHmsOpen, setAddHmsOpen] = useState(false)
   const [addHms, setAddHms] = useState({ hours: 0, minutes: 0, seconds: 0 })
@@ -331,8 +369,7 @@ export default function MySimulationsOverview({ analyses, onAddLink, onUpdateMet
             expanded={expandedId === a.id}
             onToggle={() => setExpandedId(expandedId === a.id ? null : a.id)}
             onUpdateMeta={onUpdateMeta}
-            onAddFeedback={onAddFeedback}
-            onDeleteFeedback={onDeleteFeedback}
+            author={author}
             onDelete={(id) => {
               if (expandedId === id) setExpandedId(null)
               onDelete(id)

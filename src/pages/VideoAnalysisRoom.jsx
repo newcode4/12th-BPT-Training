@@ -4,16 +4,14 @@ import {
   ChevronDown, ChevronRight, Sparkles, ArrowUpDown, Upload, MonitorPlay, Folder,
   ShieldCheck, Plus, X, AlertCircle, Pencil, LayoutGrid
 } from 'lucide-react'
-import { generateUUID, formatTime, downloadJSON, hmsToSeconds } from '../utils/formatters'
+import { generateUUID, formatTime, downloadJSON } from '../utils/formatters'
 import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
-import { parseYouTubeUrl, parseYouTubeStartSeconds } from '../utils/youtube'
+import { parseYouTubeUrl } from '../utils/youtube'
 import { saveFileBlob, getFileBlob, deleteFileBlob } from '../utils/fileStore'
 import { isAdminMode } from '../utils/admin'
-import TimeHMSInput, { applySecondsToHMS } from '../components/TimeHMSInput'
 import { WEEK_CURRICULUM } from '../utils/curriculum'
 import VideoPlayer from '../components/VideoPlayer'
 import ScrapEditor from '../components/ScrapEditor'
-import MyYoutubeAnalysis from '../components/MyYoutubeAnalysis'
 import WeekReferenceVideos from '../components/WeekReferenceVideos'
 import AllReplaysArchive from '../components/AllReplaysArchive'
 import WeekInsights from '../components/WeekInsights'
@@ -27,7 +25,6 @@ const FULL_RECORDING_FOLDER = '전체 녹음'
 export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   const [selectedWeek, setSelectedWeek] = useState('0')
   const [selectedFolder, setSelectedFolder] = useState(FULL_RECORDING_FOLDER)
-  const [sourceMode, setSourceMode] = useState('file') // 'file' | 'youtube'
   const [showAllMine, setShowAllMine] = useState(false)
 
   const [file, setFile] = useState(null)
@@ -37,10 +34,6 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   const [analyses, setAnalyses] = useState([])
   const [selectedAnalysis, setSelectedAnalysis] = useState(null)
   const [scraps, setScraps] = useState([])
-
-  const [ytUrlInput, setYtUrlInput] = useState('')
-  const [ytStartHMS, setYtStartHMS] = useState({ hours: 0, minutes: 0, seconds: 0 })
-  const [ytActiveAnalysis, setYtActiveAnalysis] = useState(null)
 
   const [insights, setInsights] = useState([])
   const [notesOpen, setNotesOpen] = useState(false)
@@ -81,7 +74,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   // 방금 불러온 분석이 지워져 "파일을 찾을 수 없다"처럼 보인다. 지금 열려 있는 분석이
   // 새 주차/폴더에 속하면 초기화를 건너뛴다.
   useEffect(() => {
-    const active = selectedAnalysis || ytActiveAnalysis
+    const active = selectedAnalysis
     const belongsHere =
       active &&
       (active.week || '0') === selectedWeek &&
@@ -96,7 +89,6 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
       prevWeekRef.current = selectedWeek
       setSelectedFolder(FULL_RECORDING_FOLDER)
     }
-    setYtActiveAnalysis(null)
     handleNewAnalysis()
   }, [selectedWeek, selectedFolder])
 
@@ -301,7 +293,6 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
     const updated = { ...analysis, title: next.trim() }
     setAnalyses(analyses.map(a => a.id === updated.id ? updated : a))
     if (selectedAnalysis?.id === updated.id) setSelectedAnalysis(updated)
-    if (ytActiveAnalysis?.id === updated.id) setYtActiveAnalysis(updated)
     try {
       await putRecord('analysis', updated, { author: updated.author || author, week: updated.week })
     } catch (e) {
@@ -313,7 +304,6 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
     if (!confirm('정말로 삭제하시겠습니까?')) return
     deleteFileBlob(id).catch(() => {})
     setAnalyses(analyses.filter(a => a.id !== id))
-    if (ytActiveAnalysis?.id === id) setYtActiveAnalysis(null)
     try {
       await removeRecord('analysis', id)
     } catch (e) {
@@ -321,31 +311,27 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
     }
   }
 
+  // 음성 녹음 분석 피드백 목록은 파일 업로드 전용이라 여기서 불러오는 건 항상 파일이다
+  // (유튜브 링크는 "내 시뮬레이션 모아보기"에서 등록·재생한다)
   const handleLoadAnalysis = async (analysis) => {
     setShowAllMine(false)
     setSelectedWeek(analysis.week || '0')
     setSelectedFolder(analysis.folder || FULL_RECORDING_FOLDER)
-    if (analysis.source === 'youtube') {
-      setSourceMode('youtube')
-      setYtActiveAnalysis(analysis)
+    setSelectedAnalysis(analysis)
+    setScraps(analysis.scraps || [])
+    let blob = null
+    try {
+      blob = await getFileBlob(analysis.id)
+    } catch (e) {
+      console.error('파일 불러오기 실패', e)
+    }
+    if (blob && blob.size > 0) {
+      setFile(new File([blob], analysis.filename || '녹음파일', { type: blob.type || 'video/mp4' }))
+      setNeedsReattach(false)
     } else {
-      setSourceMode('file')
-      setSelectedAnalysis(analysis)
-      setScraps(analysis.scraps || [])
-      let blob = null
-      try {
-        blob = await getFileBlob(analysis.id)
-      } catch (e) {
-        console.error('파일 불러오기 실패', e)
-      }
-      if (blob && blob.size > 0) {
-        setFile(new File([blob], analysis.filename || '녹음파일', { type: blob.type || 'video/mp4' }))
-        setNeedsReattach(false)
-      } else {
-        // 빈 파일을 넣으면 플레이어가 깨지므로, 다시 연결 안내를 띄운다
-        setFile(null)
-        setNeedsReattach(true)
-      }
+      // 빈 파일을 넣으면 플레이어가 깨지므로, 다시 연결 안내를 띄운다
+      setFile(null)
+      setNeedsReattach(true)
     }
     setAnalysisOpen(true)
     requestAnimationFrame(() => {
@@ -355,33 +341,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
     })
   }
 
-  const handleYtLoad = () => {
-    const videoId = parseYouTubeUrl(ytUrlInput.trim())
-    if (!videoId) {
-      alert('유튜브 링크를 확인해주세요.')
-      return
-    }
-    const startSeconds = hmsToSeconds(ytStartHMS.hours, ytStartHMS.minutes, ytStartHMS.seconds)
-    const analysis = {
-      id: generateUUID(),
-      week: selectedWeek,
-      folder: selectedFolder,
-      source: 'youtube',
-      videoId,
-      startSeconds,
-      scraps: [],
-      author,
-      uploadedAt: new Date().toISOString()
-    }
-    setAnalyses([...analyses, analysis])
-    setYtActiveAnalysis(analysis)
-    setYtUrlInput('')
-    setYtStartHMS({ hours: 0, minutes: 0, seconds: 0 })
-    putRecord('analysis', analysis, { author, week: selectedWeek })
-      .catch(e => alert('유튜브 링크 저장에 실패했어요: ' + e.message))
-  }
-
-  // 전체 라이브 다시보기에서 바로 "내 시뮬레이션 분석"으로 가져오기
+  // 전체 라이브 다시보기에서 "내 시뮬레이션 분석에 추가" — 유튜브 소스라 모아보기로 보낸다
   const handleAddReplayToAnalysis = (replay) => {
     const analysis = {
       id: generateUUID(),
@@ -395,10 +355,9 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
       uploadedAt: new Date().toISOString(),
     }
     setAnalyses([...analyses, analysis])
-    setSourceMode('youtube')
-    setYtActiveAnalysis(analysis)
     putRecord('analysis', analysis, { author, week: selectedWeek })
       .catch(e => alert('내 분석에 추가하지 못했어요: ' + e.message))
+    setShowAllMine(true)
     requestAnimationFrame(() => {
       playerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
@@ -416,7 +375,6 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
       videoId,
       startSeconds,
       scraps: [],
-      feedbackList: [],
       author,
       uploadedAt: new Date().toISOString(),
     }
@@ -439,70 +397,24 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
       .catch(e => console.error('시뮬레이션 저장 실패', e))
   }
 
-  const handleAddSimFeedback = (id, text) => {
-    const target = analyses.find(a => a.id === id)
-    if (!target) return
-    const entry = { id: generateUUID(), text, createdAt: new Date().toISOString() }
-    persistMySimUpdate(id, { feedbackList: [entry, ...(target.feedbackList || [])] })
-  }
-
-  const handleDeleteSimFeedback = (id, feedbackId) => {
-    const target = analyses.find(a => a.id === id)
-    if (!target) return
-    persistMySimUpdate(id, { feedbackList: (target.feedbackList || []).filter(f => f.id !== feedbackId) })
-  }
-
-  const handleYtUrlChange = (url) => {
-    setYtUrlInput(url)
-    const startFromUrl = parseYouTubeStartSeconds(url.trim())
-    if (startFromUrl > 0) {
-      applySecondsToHMS(startFromUrl, setYtStartHMS)
-    }
-  }
-
-  const handleYtAddScrap = (timestamp, title, note) => {
-    if (!ytActiveAnalysis) return
-    const newScrap = { id: generateUUID(), timestamp, title, note, author, createdAt: new Date().toISOString() }
-    const updated = { ...ytActiveAnalysis, scraps: [...ytActiveAnalysis.scraps, newScrap] }
-    persistYtAnalysis(updated)
-  }
-
-  const handleYtUpdateScrap = (scrapId, title, note) => {
-    if (!ytActiveAnalysis) return
-    const updated = {
-      ...ytActiveAnalysis,
-      scraps: ytActiveAnalysis.scraps.map(s => s.id === scrapId ? { ...s, title, note } : s),
-    }
-    persistYtAnalysis(updated)
-  }
-
-  const handleYtDeleteScrap = (scrapId) => {
-    if (!ytActiveAnalysis) return
-    const updated = { ...ytActiveAnalysis, scraps: ytActiveAnalysis.scraps.filter(s => s.id !== scrapId) }
-    persistYtAnalysis(updated)
-  }
-
-  const persistYtAnalysis = (updated) => {
-    setYtActiveAnalysis(updated)
-    setAnalyses(analyses.map(a => a.id === updated.id ? updated : a))
-    putRecord('analysis', updated, { author: updated.author || author, week: updated.week })
-      .catch(e => alert('스크랩 저장에 실패했어요: ' + e.message))
-  }
-
   const analysisDisplayName = (analysis) =>
     analysis.title || (analysis.source === 'youtube' ? `유튜브 · ${analysis.videoId}` : analysis.filename)
 
-  const countByWeek = (weekId) => analyses.filter(a => (a.week || '0') === weekId).length
-  const countByFolder = (folder) => analyses.filter(a => (a.week || '0') === selectedWeek && (a.folder || FULL_RECORDING_FOLDER) === folder).length
+  const countByWeek = (weekId) => analyses.filter(a => (a.week || '0') === weekId && a.source !== 'youtube').length
+  const countByFolder = (folder) => analyses.filter(a => (a.week || '0') === selectedWeek && (a.folder || FULL_RECORDING_FOLDER) === folder && a.source !== 'youtube').length
+  // 음성 녹음 분석 피드백은 파일(녹음) 전용 — 유튜브 소스는 "내 시뮬레이션 모아보기"에서만 다룬다
   const analysesInFolder = analyses
-    .filter(a => (a.week || '0') === selectedWeek && (a.folder || FULL_RECORDING_FOLDER) === selectedFolder)
+    .filter(a => (a.week || '0') === selectedWeek && (a.folder || FULL_RECORDING_FOLDER) === selectedFolder && a.source !== 'youtube')
     .sort((a, b) => {
       const diff = new Date(a.uploadedAt) - new Date(b.uploadedAt)
       return sortOrder === 'oldest' ? diff : -diff
     })
   const weekLabel = WEEKS.find(w => w.id === selectedWeek)?.label
-  // 어느 주차/폴더든 상관없이 내가 올린 시뮬레이션을 한 번에 모아 보는 용도 (analyses는 이미 author로 스코핑됨)
-  const myAllAnalyses = [...analyses].sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
+  // 어느 주차/폴더든 상관없이 내가 올린 유튜브 시뮬레이션을 한 번에 모아 보는 용도
+  // (analyses는 이미 author로 스코핑됨. 파일/녹음은 "음성 녹음 분석 피드백"에서 따로 다룬다)
+  const myAllAnalyses = analyses
+    .filter(a => a.source === 'youtube')
+    .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
 
   // 왼쪽 메뉴(주차/폴더)를 눌렀을 때 실제로 화면이 바뀐 걸 느낄 수 있도록,
   // 관련 콘텐츠 쪽으로 스크롤해준다. 사이드바가 화면 밖에 있으면 클릭해도 아무 변화가
@@ -736,10 +648,9 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
             </p>
             <MySimulationsOverview
               analyses={myAllAnalyses}
+              author={author}
               onAddLink={handleAddMyLink}
               onUpdateMeta={persistMySimUpdate}
-              onAddFeedback={handleAddSimFeedback}
-              onDeleteFeedback={handleDeleteSimFeedback}
               onDelete={handleDeleteAnalysis}
             />
           </div>
@@ -764,9 +675,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
             <p className="text-xs text-gray-500 mb-3">카드를 클릭하면 바로 아래에서 재생하며 이어서 확인할 수 있어요</p>
             <div className="stagger grid gap-3">
               {analysesInFolder.map((analysis) => {
-                const isActive = analysis.source === 'youtube'
-                  ? (sourceMode === 'youtube' && ytActiveAnalysis?.id === analysis.id)
-                  : (sourceMode === 'file' && selectedAnalysis?.id === analysis.id)
+                const isActive = selectedAnalysis?.id === analysis.id
                 return (
                   <div
                     key={analysis.id}
@@ -844,7 +753,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
           </div>
         )}
 
-        {/* 내 시뮬레이션 업로드 & 스크랩 — 모아보기에서는 링크 등록이 그 안에서 바로 되니 숨긴다 */}
+        {/* 음성 녹음 분석 피드백 — 유튜브는 "내 시뮬레이션 모아보기"로 옮겨서, 여긴 파일(녹음) 전용이다 */}
         {!showAllMine && (
         <div ref={playerSectionRef} className="bg-surface rounded-2xl shadow-card border border-white/10 scroll-mt-4 overflow-hidden">
           <button
@@ -854,7 +763,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
             {/* key로 주차/폴더가 바뀔 때마다 다시 마운트시켜서, 왼쪽 메뉴를 눌렀을 때
                 여기 라벨이 확실히 "바뀌었다"는 느낌이 들게 살짝 팝 애니메이션을 준다 */}
             <div key={`${selectedWeek}-${selectedFolder}`} className="anim-pop min-w-0">
-              <h3 className="text-lg font-extrabold">내 시뮬레이션 분석</h3>
+              <h3 className="text-lg font-extrabold">음성 녹음 분석 피드백</h3>
               <p className="text-xs text-gray-500 truncate">{weekLabel} · {selectedFolder}</p>
             </div>
             <ChevronDown
@@ -864,28 +773,6 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
           </button>
 
           <div className={analysisOpen ? 'p-4 md:p-6 pt-0' : 'hidden'}>
-          <div className="flex gap-2 mb-4">
-            <button
-              onClick={() => setSourceMode('file')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm transition ${
-                sourceMode === 'file' ? 'bg-brand text-white' : 'bg-surface-alt text-gray-400 hover:bg-white/10'
-              }`}
-            >
-              <Upload size={14} />
-              파일 업로드
-            </button>
-            <button
-              onClick={() => setSourceMode('youtube')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm transition ${
-                sourceMode === 'youtube' ? 'bg-brand text-white' : 'bg-surface-alt text-gray-400 hover:bg-white/10'
-              }`}
-            >
-              <MonitorPlay size={14} />
-              유튜브 링크
-            </button>
-          </div>
-
-          {sourceMode === 'file' && (
             <>
               <label className="block bg-surface-alt hover:bg-white/10 border border-dashed border-white/15 hover:border-brand/50 rounded-xl p-5 mb-4 cursor-pointer transition text-center">
                 <input
@@ -1024,64 +911,6 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
                 </div>
               )}
             </>
-          )}
-
-          {sourceMode === 'youtube' && (
-            <div className="space-y-4">
-              {!ytActiveAnalysis && (
-                <div className="bg-surface-alt rounded-xl p-4 space-y-4">
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 mb-2 block">유튜브 링크</label>
-                    <input
-                      type="url"
-                      inputMode="url"
-                      value={ytUrlInput}
-                      onChange={(e) => handleYtUrlChange(e.target.value)}
-                      placeholder="https://youtu.be/..."
-                      className="w-full p-3.5 border border-white/10 rounded-xl text-base bg-surface focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-                    />
-                    <p className="text-[11px] text-gray-500 mt-1.5">
-                      링크에 시간(t=)이 있으면 아래가 자동으로 채워져요
-                    </p>
-                  </div>
-                  <TimeHMSInput
-                    hours={ytStartHMS.hours}
-                    minutes={ytStartHMS.minutes}
-                    seconds={ytStartHMS.seconds}
-                    onChange={setYtStartHMS}
-                    label="시작 시간 (시 · 분 · 초)"
-                  />
-                  <button
-                    onClick={handleYtLoad}
-                    disabled={!ytUrlInput.trim()}
-                    className="w-full bg-brand hover:bg-brand-dark disabled:opacity-40 text-white font-bold py-3.5 rounded-xl transition active:scale-95"
-                  >
-                    불러오기
-                  </button>
-                </div>
-              )}
-
-              {ytActiveAnalysis && (
-                <>
-                  <MyYoutubeAnalysis
-                    videoId={ytActiveAnalysis.videoId}
-                    startSeconds={ytActiveAnalysis.startSeconds}
-                    scraps={ytActiveAnalysis.scraps}
-                    onAddScrap={handleYtAddScrap}
-                    onUpdateScrap={handleYtUpdateScrap}
-                    onDeleteScrap={handleYtDeleteScrap}
-                  />
-                  <button
-                    onClick={() => setYtActiveAnalysis(null)}
-                    className="w-full flex items-center justify-center gap-1.5 bg-white/10 hover:bg-white/15 text-gray-300 font-bold py-2.5 px-4 rounded-xl transition"
-                  >
-                    <RotateCcw size={16} />
-                    다른 링크 추가하기
-                  </button>
-                </>
-              )}
-            </div>
-          )}
           </div>
         </div>
         )}

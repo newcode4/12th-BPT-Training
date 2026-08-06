@@ -113,6 +113,10 @@ export default function PracticeRoom({ initialScriptFilter, onInitialFilterConsu
 
   const usedTopics = TOPICS.filter(t => questions.some(q => q.topic === t))
 
+  // 전체 돌발질문 중 몇 %를 써봤는지 — 숫자 나열보다 퍼센트/막대가 한눈에 더 잘 들어온다
+  const writtenCount = questions.filter(q => Boolean(scripts[q.id]?.text)).length
+  const progressPct = questions.length > 0 ? Math.round((writtenCount / questions.length) * 100) : 0
+
   const openPractice = (question, blind) => {
     setPracticeQuestion(question)
     setPracticeBlind(blind)
@@ -160,6 +164,21 @@ export default function PracticeRoom({ initialScriptFilter, onInitialFilterConsu
             Q&A 커뮤니티에 올라온 돌발질문에 어떻게 답할지 스크립트를 써보세요
           </p>
         </div>
+
+        {questions.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-bold text-gray-400">돌발 진행률</span>
+              <span className="text-xs font-extrabold text-brand">{progressPct}% ({writtenCount}/{questions.length})</span>
+            </div>
+            <div className="h-2 bg-surface-alt rounded-full overflow-hidden">
+              <div
+                className="h-full bg-brand rounded-full transition-all duration-500"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="space-y-2">
           <button

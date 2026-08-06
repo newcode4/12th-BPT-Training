@@ -683,6 +683,15 @@ export default function QACommunity({ author, onLogout }) {
             <h2 className="text-xl font-extrabold">{editingId ? '글 수정' : '글쓰기'}</h2>
           </div>
 
+          {!editingId && (
+            <div className="flex items-start gap-2 bg-surface-alt border border-white/10 rounded-xl p-3 mb-5">
+              <Search size={14} className="text-gray-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-gray-400 leading-relaxed">
+                혹시 중복될 수 있으니, 검색을 해보고 없으면 진행 부탁드립니다.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-5">
             <div className="flex gap-2">
               {CATEGORIES.filter(c => c.id !== 'all').map((c) => (

@@ -101,6 +101,13 @@ export default function ScriptPracticeModal({
   const estimatedSeconds = Math.round((charCount / CHARS_PER_MINUTE) * 60)
   const overOneMinute = estimatedSeconds > 60
 
+  // 배경(바깥) 클릭이나 X 버튼으로 닫을 때도 마지막 수정분(예: 다 지운 것)을 먼저 저장해야 한다.
+  // 안 그러면 800ms 디바운스가 아직 안 돈 상태에서 닫혀버려, DB엔 지우기 전 옛 내용이 그대로 남는다.
+  const handleClose = async () => {
+    if (dirtyRef.current) await persist(script)
+    onClose()
+  }
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(script)
@@ -113,7 +120,7 @@ export default function ScriptPracticeModal({
   return createPortal(
     <div
       className="anim-fade fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto overscroll-contain"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="anim-modal bg-surface rounded-2xl shadow-xl w-full md:max-w-lg p-5 md:p-6 max-h-[90vh] overflow-y-auto my-auto"
@@ -124,7 +131,7 @@ export default function ScriptPracticeModal({
             <PenLine size={19} className="text-brand" />
             대처 스크립트 작성
           </h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-200">
+          <button onClick={handleClose} className="text-gray-500 hover:text-gray-200">
             <X size={20} />
           </button>
         </div>
@@ -238,10 +245,7 @@ export default function ScriptPracticeModal({
             복사
           </button>
           <button
-            onClick={async () => {
-              if (dirtyRef.current) await persist(script)
-              onClose()
-            }}
+            onClick={handleClose}
             className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition active:scale-95"
           >
             저장하고 닫기
