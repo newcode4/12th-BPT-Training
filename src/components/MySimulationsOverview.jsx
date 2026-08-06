@@ -225,18 +225,21 @@ function FeedbackSection({ analysis, author }) {
           </button>
         ))}
       </div>
-      <div className="flex gap-2">
-        <input
-          type="text"
+      <div className="flex flex-col gap-2">
+        <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-          placeholder="느낀 점, 개선할 점을 적어보세요"
-          className="flex-1 min-w-0 p-2.5 bg-surface-alt border border-white/10 rounded-xl text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+          onKeyDown={(e) => {
+            // 그냥 Enter는 줄바꿈, Ctrl/Cmd+Enter는 바로 등록
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd()
+          }}
+          placeholder="느낀 점, 개선할 점을 적어보세요 (여러 줄 입력 가능)"
+          rows={3}
+          className="w-full min-w-0 p-2.5 bg-surface-alt border border-white/10 rounded-xl text-sm resize-y focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
         />
         <button
           onClick={handleAdd}
-          className="shrink-0 bg-brand hover:bg-brand-dark text-white font-bold px-3.5 rounded-xl text-sm transition"
+          className="self-end bg-brand hover:bg-brand-dark text-white font-bold px-3.5 py-1.5 rounded-xl text-sm transition"
         >
           추가
         </button>

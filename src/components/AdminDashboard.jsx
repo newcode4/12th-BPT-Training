@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { X, Users, LogIn, CalendarCheck2, MessageSquareText, Circle, Zap, Bookmark } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { X, Users, LogIn, CalendarCheck2, MessageSquareText, Circle, Zap, Bookmark, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { supabase } from '../utils/supabase'
 import { listRecords } from '../utils/cloudStore'
 import { ROSTER } from '../utils/auth'
@@ -11,11 +11,42 @@ function dateKeyOf(iso) {
   return new Date(iso).toLocaleDateString('ko-KR')
 }
 
+// 열 이름 → 클릭 시 정렬에 쓸 값 계산 함수. name은 가나다순, 나머지는 숫자 비교.
+const SORT_COLUMNS = {
+  name: { label: '이름', get: (r) => r.name, type: 'text' },
+  online: { label: '접속', get: (r) => (r.online ? 1 : 0), type: 'number' },
+  loginCount: { label: '로그인', get: (r) => r.loginCount, type: 'number' },
+  attendanceDays: { label: '출석일', get: (r) => r.attendanceDays, type: 'number' },
+  commentCount: { label: '댓글', get: (r) => r.commentCount, type: 'number' },
+  unexpectedCount: { label: '돌발질문', get: (r) => r.unexpectedCount, type: 'number' },
+  scrapCount: { label: '스크랩', get: (r) => r.scrapCount, type: 'number' },
+}
+
+function SortHeader({ label, icon, sortKey, current, dir, onSort, align = 'center', className = '' }) {
+  const active = current === sortKey
+  const Icon = active ? (dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+  return (
+    <button
+      onClick={() => onSort(sortKey)}
+      className={`flex items-center gap-1 hover:text-gray-200 transition ${className} ${
+        align === 'left' ? 'justify-start' : 'justify-center'
+      } ${active ? 'text-gray-200' : ''}`}
+    >
+      {icon}
+      {label}
+      <Icon size={11} className={active ? 'text-brand' : 'text-gray-600'} />
+    </button>
+  )
+}
+
 // 관리자 전용 — 학생별 로그인 횟수, 출석 일수, 지금 접속 중인지, 댓글(답변) 작성 수를 한눈에 본다.
 export default function AdminDashboard({ onClose }) {
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState([])
   const [error, setError] = useState('')
+  // 아무것도 안 눌렀을 때 기본 정렬: 접속 중인 사람 먼저, 그다음 로그인 많은 순
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState('desc')
 
   useEffect(() => {
     let cancelled = false
@@ -71,10 +102,7 @@ export default function AdminDashboard({ onClose }) {
           commentCount: commentCountByName[name] || 0,
           unexpectedCount: unexpectedCountByName[name] || 0,
           scrapCount: scrapCountByName[name] || 0,
-        })).sort((a, b) => {
-          if (a.online !== b.online) return a.online ? -1 : 1
-          return b.loginCount - a.loginCount
-        })
+        }))
 
         setRows(built)
         setLoading(false)
@@ -90,6 +118,34 @@ export default function AdminDashboard({ onClose }) {
   }, [])
 
   const onlineCount = rows.filter((r) => r.online).length
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) {
+      // 기본 정렬: 접속 중인 사람 먼저, 그다음 로그인 많은 순
+      return [...rows].sort((a, b) => {
+        if (a.online !== b.online) return a.online ? -1 : 1
+        return b.loginCount - a.loginCount
+      })
+    }
+    const { get, type } = SORT_COLUMNS[sortKey]
+    const dirMul = sortDir === 'asc' ? 1 : -1
+    return [...rows].sort((a, b) => {
+      const av = get(a)
+      const bv = get(b)
+      if (type === 'text') return av.localeCompare(bv, 'ko') * dirMul
+      return (av - bv) * dirMul
+    })
+  }, [rows, sortKey, sortDir])
+
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      // 이름은 가나다순(오름차순)이 자연스럽고, 나머지 숫자 지표는 큰 값부터 보는 게 유용하다
+      setSortDir(key === 'name' ? 'asc' : 'desc')
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
@@ -111,16 +167,39 @@ export default function AdminDashboard({ onClose }) {
 
           {!loading && !error && (
             <div className="space-y-1.5">
-              <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-3 px-3 text-[11px] font-bold text-gray-500">
-                <span>이름</span>
-                <span className="w-16 text-center">접속</span>
-                <span className="w-20 text-center flex items-center justify-center gap-1"><LogIn size={11} />로그인</span>
-                <span className="w-20 text-center flex items-center justify-center gap-1"><CalendarCheck2 size={11} />출석일</span>
-                <span className="w-20 text-center flex items-center justify-center gap-1"><MessageSquareText size={11} />댓글</span>
-                <span className="w-20 text-center flex items-center justify-center gap-1"><Zap size={11} />돌발질문</span>
-                <span className="w-20 text-center flex items-center justify-center gap-1"><Bookmark size={11} />스크랩</span>
+              {/* 모바일에서는 헤더 그리드가 안 보이니, 정렬 기준을 고를 수 있는 드롭다운을 따로 둔다 */}
+              <div className="md:hidden flex items-center gap-2 px-1 pb-1">
+                <span className="text-[11px] font-bold text-gray-500">정렬</span>
+                <select
+                  value={sortKey || 'default'}
+                  onChange={(e) => handleSort(e.target.value === 'default' ? null : e.target.value)}
+                  className="flex-1 min-w-0 bg-surface-alt border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none"
+                >
+                  <option value="default">기본순 (접속 중 → 로그인 많은순)</option>
+                  {Object.entries(SORT_COLUMNS).map(([key, col]) => (
+                    <option key={key} value={key}>{col.label}</option>
+                  ))}
+                </select>
+                {sortKey && (
+                  <button
+                    onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                    className="shrink-0 flex items-center gap-1 bg-surface-alt border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-gray-300"
+                  >
+                    {sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                    {sortDir === 'asc' ? '오름차순' : '내림차순'}
+                  </button>
+                )}
               </div>
-              {rows.map((r) => (
+              <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-3 px-3 text-[11px] font-bold text-gray-500">
+                <SortHeader label="이름" sortKey="name" align="left" current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortHeader label="접속" sortKey="online" className="w-16" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="로그인" icon={<LogIn size={11} />} sortKey="loginCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="출석일" icon={<CalendarCheck2 size={11} />} sortKey="attendanceDays" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="댓글" icon={<MessageSquareText size={11} />} sortKey="commentCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="돌발질문" icon={<Zap size={11} />} sortKey="unexpectedCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="스크랩" icon={<Bookmark size={11} />} sortKey="scrapCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
+              </div>
+              {sortedRows.map((r) => (
                 <div
                   key={r.name}
                   className="grid grid-cols-2 md:grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-2 md:gap-3 items-center bg-surface-alt rounded-xl px-3 py-2.5"
