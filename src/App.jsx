@@ -10,6 +10,7 @@ import CommunityPulse from './components/CommunityPulse'
 import VideoAnalysisRoom from './pages/VideoAnalysisRoom'
 import QACommunity from './pages/QACommunity'
 import PracticeRoom from './pages/PracticeRoom'
+import RankingPage from './pages/RankingPage'
 import { getSession, heartbeat } from './utils/auth'
 
 const HEARTBEAT_MS = 30 * 1000
@@ -78,6 +79,8 @@ export default function App() {
             onInitialFilterConsumed={() => setPracticeInitialFilter(null)}
           />
         )
+      case 'ranking':
+        return <RankingPage author={author} />
       default:
         return <VideoAnalysisRoom jumpWeek={jumpWeek} onJumpConsumed={() => setJumpWeek(null)} />
     }

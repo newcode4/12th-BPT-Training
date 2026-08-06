@@ -1,9 +1,10 @@
-import { Video, MessageCircle, PenLine, Rocket, User, PartyPopper, Sparkles } from 'lucide-react'
+import { Video, MessageCircle, PenLine, Trophy, Rocket, User, PartyPopper, Sparkles } from 'lucide-react'
 
 const navItems = [
   { id: 'analysis', label: '시뮬레이션 분석실', short: '분석실', icon: Video },
   { id: 'qa', label: 'Q&A 커뮤니티', short: 'Q&A', icon: MessageCircle },
   { id: 'practice', label: '돌발 연습실', short: '돌발연습', icon: PenLine },
+  { id: 'ranking', label: '랭킹', short: '랭킹', icon: Trophy },
 ]
 
 const SIMULATOR_URL = 'https://azuremooni.github.io/businesspt-simulator/'
@@ -82,7 +83,7 @@ export default function Navigation({ currentPage, setCurrentPage, onOpenProfile,
       </nav>
 
       {/* 모바일 하단 탭바 */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-white/10 grid grid-cols-3 pb-[env(safe-area-inset-bottom)]">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-white/10 grid grid-cols-4 pb-[env(safe-area-inset-bottom)]">
         {navItems.map((item) => {
           const Icon = item.icon
           return (

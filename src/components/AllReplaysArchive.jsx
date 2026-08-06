@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, PlayCircle, ShieldCheck, Plus, Trash2, FolderPlus, Bookmark, Check, X } from 'lucide-react'
+import { ChevronDown, PlayCircle, ShieldCheck, Plus, Trash2, FolderPlus, Bookmark, Check, X, Pencil } from 'lucide-react'
 import { loadYouTubeAPI, parseYouTubeUrl } from '../utils/youtube'
 import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 import { isAdminMode } from '../utils/admin'
@@ -277,10 +277,137 @@ function ScrapForm({ replay, folders, selectedWeek, author, getCurrentSeconds, o
   )
 }
 
+// 저장한 스크랩 하나를 고치는 폼 — 저장할 때 쓴 폼과 필드 구성을 맞췄다
+function ScrapEditForm({ scrap, folders, getCurrentSeconds, onCancel, onSaved }) {
+  const [title, setTitle] = useState(scrap.title || '')
+  const [memo, setMemo] = useState(scrap.memo || '')
+  const [folder, setFolder] = useState(scrap.folder || folders?.[0] || '')
+  const [week, setWeek] = useState(scrap.week || '0')
+  const [timestamp, setTimestamp] = useState(scrap.timestamp || '')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (!title.trim()) {
+      alert('제목을 입력해주세요.')
+      return
+    }
+    setSaving(true)
+    const updated = {
+      ...scrap,
+      title: title.trim(),
+      memo: memo.trim(),
+      folder: folder || '전체 녹음',
+      week,
+      timestamp: timestamp.trim(),
+    }
+    try {
+      await putRecord('live_scrap', updated, { author: scrap.author, week })
+      onSaved(updated)
+    } catch (e) {
+      alert('수정에 실패했어요: ' + e.message)
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2.5 p-2.5 bg-surface rounded-xl border border-brand/30">
+      <div>
+        <p className="text-[11px] text-gray-500 mb-1">시작 시분초</p>
+        <div className="flex gap-1.5">
+          <input
+            type="text"
+            value={timestamp}
+            onChange={(e) => setTimestamp(e.target.value)}
+            placeholder="예: 5:39:22"
+            className="flex-1 min-w-0 p-2 bg-surface-alt border border-white/10 rounded-lg text-sm font-mono focus:outline-none focus:border-brand"
+          />
+          {getCurrentSeconds && (
+            <button
+              onClick={() => setTimestamp(formatTime(getCurrentSeconds() || 0))}
+              className="shrink-0 px-2.5 rounded-lg bg-surface-alt text-xs font-bold text-brand hover:bg-white/10"
+            >
+              지금 시간으로
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-[11px] text-gray-500 mb-1">몇 주차인가요?</p>
+        <div className="flex flex-wrap gap-1.5">
+          {WEEKS.map((w) => (
+            <button
+              key={w.id}
+              onClick={() => setWeek(w.id)}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                week === w.id ? 'bg-brand text-white' : 'bg-surface-alt text-gray-400 hover:bg-white/10'
+              }`}
+            >
+              {w.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {folders && folders.length > 0 && (
+        <div>
+          <p className="text-[11px] text-gray-500 mb-1">세부 카테고리</p>
+          <select
+            value={folder}
+            onChange={(e) => setFolder(e.target.value)}
+            className="w-full p-2 bg-surface-alt border border-white/10 rounded-lg text-sm font-bold focus:outline-none focus:border-brand"
+          >
+            {folders.map(f => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div>
+        <p className="text-[11px] text-gray-500 mb-1">제목 <span className="text-brand">*</span></p>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="w-full p-2 bg-surface-alt border border-white/10 rounded-lg text-sm focus:outline-none focus:border-brand"
+        />
+      </div>
+
+      <div>
+        <p className="text-[11px] text-gray-500 mb-1">메모 (선택)</p>
+        <textarea
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          rows={2}
+          className="w-full p-2 bg-surface-alt border border-white/10 rounded-lg text-sm resize-none focus:outline-none focus:border-brand"
+        />
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={onCancel}
+          className="flex-1 py-2 rounded-lg text-xs font-bold bg-surface-alt text-gray-300 hover:bg-white/10 transition"
+        >
+          취소
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving || !title.trim()}
+          className="flex-1 py-2 rounded-lg text-xs font-bold bg-brand hover:bg-brand-dark text-white transition disabled:opacity-60"
+        >
+          저장
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // 저장한 스크랩 목록 — 녹음 분석의 스크랩처럼, 시분초를 누르면 그 지점부터 다시 볼 수 있다
-function ScrapList({ replay, author, refreshKey, onSeek }) {
+function ScrapList({ replay, folders, author, refreshKey, getCurrentSeconds, onSeek }) {
   const [scraps, setScraps] = useState([])
   const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -304,37 +431,63 @@ function ScrapList({ replay, author, refreshKey, onSeek }) {
     removeRecord('live_scrap', id).catch((e) => console.error('스크랩 삭제 실패', e))
   }
 
+  const handleSaved = (updated) => {
+    setScraps((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
+    setEditingId(null)
+  }
+
   if (loading || scraps.length === 0) return null
 
   return (
     <div className="space-y-1.5">
       <p className="text-xs font-bold text-gray-500">이 영상에서 저장한 스크랩</p>
       {scraps.map((s) => (
-        <div key={s.id} className="flex items-start justify-between gap-2 p-2.5 bg-surface-alt rounded-xl">
-          <button
-            onClick={() => s.timestamp && onSeek?.(parseHMSToSeconds(s.timestamp))}
-            className="min-w-0 text-left flex-1"
-          >
-            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-              {s.timestamp && (
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-brand-light text-brand">
-                  {s.timestamp}
+        editingId === s.id ? (
+          <ScrapEditForm
+            key={s.id}
+            scrap={s}
+            folders={folders}
+            getCurrentSeconds={getCurrentSeconds}
+            onCancel={() => setEditingId(null)}
+            onSaved={handleSaved}
+          />
+        ) : (
+          <div key={s.id} className="flex items-start justify-between gap-2 p-2.5 bg-surface-alt rounded-xl">
+            <button
+              onClick={() => s.timestamp && onSeek?.(parseHMSToSeconds(s.timestamp))}
+              className="min-w-0 text-left flex-1"
+            >
+              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                {s.timestamp && (
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-brand-light text-brand">
+                    {s.timestamp}
+                  </span>
+                )}
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-gray-400">
+                  {s.folder}
                 </span>
-              )}
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-gray-400">
-                {s.folder}
-              </span>
+              </div>
+              <p className="text-sm font-bold text-gray-200">{s.title}</p>
+              {s.memo && <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{s.memo}</p>}
+            </button>
+            <div className="shrink-0 flex items-center gap-2">
+              <button
+                onClick={() => setEditingId(s.id)}
+                className="text-gray-600 hover:text-brand"
+                title="수정"
+              >
+                <Pencil size={13} />
+              </button>
+              <button
+                onClick={() => handleDelete(s.id)}
+                className="text-gray-600 hover:text-red-500"
+                title="삭제"
+              >
+                <X size={13} />
+              </button>
             </div>
-            <p className="text-sm font-bold text-gray-200">{s.title}</p>
-            {s.memo && <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{s.memo}</p>}
-          </button>
-          <button
-            onClick={() => handleDelete(s.id)}
-            className="shrink-0 text-gray-600 hover:text-red-500"
-          >
-            <X size={13} />
-          </button>
-        </div>
+          </div>
+        )
       ))}
     </div>
   )
@@ -556,8 +709,10 @@ export default function AllReplaysArchive({ folders, onWeekChange, selectedWeek:
 
                   <ScrapList
                     replay={activeReplay}
+                    folders={folders}
                     author={author}
                     refreshKey={scrapRefreshKey}
+                    getCurrentSeconds={() => playerRef.current?.getCurrentTime?.() || 0}
                     onSeek={(seconds) => playerRef.current?.seekTo?.(seconds, true)}
                   />
                 </>
