@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X, Users, LogIn, CalendarCheck2, MessageSquareText, Circle, Zap, Bookmark, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { X, Users, LogIn, CalendarCheck2, MessageSquareText, Circle, Zap, Bookmark, LayoutGrid, PenLine, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { supabase } from '../utils/supabase'
 import { listRecords } from '../utils/cloudStore'
 import { ROSTER } from '../utils/auth'
@@ -20,6 +20,8 @@ const SORT_COLUMNS = {
   commentCount: { label: '댓글', get: (r) => r.commentCount, type: 'number' },
   unexpectedCount: { label: '돌발질문', get: (r) => r.unexpectedCount, type: 'number' },
   scrapCount: { label: '스크랩', get: (r) => r.scrapCount, type: 'number' },
+  simCount: { label: '시뮬레이션', get: (r) => r.simCount, type: 'number' },
+  simFeedbackCount: { label: '시뮬 피드백', get: (r) => r.simFeedbackCount, type: 'number' },
 }
 
 function SortHeader({ label, icon, sortKey, current, dir, onSort, align = 'center', className = '' }) {
@@ -54,12 +56,13 @@ export default function AdminDashboard({ onClose }) {
     async function load() {
       try {
         const staleBefore = new Date(Date.now() - STALE_MS).toISOString()
-        const [loginEvents, sessionsRes, answersRes, questionsRes, analysisRecords] = await Promise.all([
+        const [loginEvents, sessionsRes, answersRes, questionsRes, analysisRecords, feedbackRecords] = await Promise.all([
           listRecords('login_event'),
           supabase.from('sessions').select('name, last_seen').gte('last_seen', staleBefore),
           supabase.from('answers').select('author'),
           supabase.from('questions').select('author, category').eq('category', 'unexpected'),
           listRecords('analysis'),
+          listRecords('feedback'),
         ])
         if (cancelled) return
 
@@ -87,11 +90,24 @@ export default function AdminDashboard({ onClose }) {
         }
 
         // 스크랩은 시뮬레이션(analysis) 레코드 안에 배열로 들어있어서, 학생별로 다 더한다 —
-        // 영상만 걸어두고 실제로는 스크랩(복습 메모)을 안 남기는 학생을 가려낼 수 있다
+        // 영상만 걸어두고 실제로는 스크랩(복습 메모)을 안 남기는 학생을 가려낼 수 있다.
+        // "내 시뮬레이션 모아보기"에 등록한 유튜브 링크 개수도 같은 레코드에서 센다.
         const scrapCountByName = {}
+        const simCountByName = {}
         for (const a of analysisRecords) {
           if (!a.author) continue
           scrapCountByName[a.author] = (scrapCountByName[a.author] || 0) + (a.scraps?.length || 0)
+          if (a.source === 'youtube') {
+            simCountByName[a.author] = (simCountByName[a.author] || 0) + 1
+          }
+        }
+
+        // 시뮬레이션 카드 안에서 남긴 피드백만 센다(analysisId가 있는 것) — 인사이트 쪽
+        // "피드백 모음"에서 일반적으로 쓴 피드백까지 섞으면 "거기서 쓴 것"이 아니게 된다
+        const simFeedbackCountByName = {}
+        for (const f of feedbackRecords) {
+          if (!f.author || !f.analysisId) continue
+          simFeedbackCountByName[f.author] = (simFeedbackCountByName[f.author] || 0) + 1
         }
 
         const built = ROSTER.map((name) => ({
@@ -102,6 +118,8 @@ export default function AdminDashboard({ onClose }) {
           commentCount: commentCountByName[name] || 0,
           unexpectedCount: unexpectedCountByName[name] || 0,
           scrapCount: scrapCountByName[name] || 0,
+          simCount: simCountByName[name] || 0,
+          simFeedbackCount: simFeedbackCountByName[name] || 0,
         }))
 
         setRows(built)
@@ -190,7 +208,7 @@ export default function AdminDashboard({ onClose }) {
                   </button>
                 )}
               </div>
-              <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-3 px-3 text-[11px] font-bold text-gray-500">
+              <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto] gap-3 px-3 text-[11px] font-bold text-gray-500">
                 <SortHeader label="이름" sortKey="name" align="left" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortHeader label="접속" sortKey="online" className="w-16" onSort={handleSort} current={sortKey} dir={sortDir} />
                 <SortHeader label="로그인" icon={<LogIn size={11} />} sortKey="loginCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
@@ -198,11 +216,13 @@ export default function AdminDashboard({ onClose }) {
                 <SortHeader label="댓글" icon={<MessageSquareText size={11} />} sortKey="commentCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
                 <SortHeader label="돌발질문" icon={<Zap size={11} />} sortKey="unexpectedCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
                 <SortHeader label="스크랩" icon={<Bookmark size={11} />} sortKey="scrapCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="시뮬레이션" icon={<LayoutGrid size={11} />} sortKey="simCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="시뮬 피드백" icon={<PenLine size={11} />} sortKey="simFeedbackCount" className="w-20" onSort={handleSort} current={sortKey} dir={sortDir} />
               </div>
               {sortedRows.map((r) => (
                 <div
                   key={r.name}
-                  className="grid grid-cols-2 md:grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-2 md:gap-3 items-center bg-surface-alt rounded-xl px-3 py-2.5"
+                  className="grid grid-cols-2 md:grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto] gap-2 md:gap-3 items-center bg-surface-alt rounded-xl px-3 py-2.5"
                 >
                   <span className="font-bold text-sm flex items-center gap-1.5 truncate">
                     {r.online && <Circle size={7} className="fill-emerald-400 text-emerald-400 shrink-0" />}
@@ -216,6 +236,8 @@ export default function AdminDashboard({ onClose }) {
                   <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.commentCount}개</span>
                   <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.unexpectedCount}개</span>
                   <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.scrapCount}개</span>
+                  <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.simCount}개</span>
+                  <span className="md:w-20 text-right md:text-center text-sm font-bold text-gray-200">{r.simFeedbackCount}개</span>
                 </div>
               ))}
             </div>
