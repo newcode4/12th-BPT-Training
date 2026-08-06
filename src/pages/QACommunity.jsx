@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   MessageCircle, AlertTriangle, MessageSquare, Star, ThumbsUp, Mic, PenLine,
@@ -21,6 +21,7 @@ const CATEGORIES = [
 ]
 
 const PAGE_SIZE = 15
+const QA_LAST_VIEW_KEY = 'pt-qa-last-view'
 
 function mapAnswer(a) {
   return {
@@ -96,6 +97,7 @@ export default function QACommunity({ author, onLogout }) {
   const [newTopic, setNewTopic] = useState('')
   const [showContentField, setShowContentField] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const restoredViewRef = useRef(false)
 
   const loadQuestions = async () => {
     if (!supabaseConfigured) {
@@ -124,6 +126,33 @@ export default function QACommunity({ author, onLogout }) {
   useEffect(() => {
     setPage(1)
   }, [categoryFilter, topicFilter, weekFilter, searchQuery, sortBy])
+
+  // 새로고침해도 보고 있던 글이 그대로 열려 있게 한다 (전엔 항상 목록으로 돌아갔다)
+  useEffect(() => {
+    if (restoredViewRef.current || loading || questions.length === 0) return
+    restoredViewRef.current = true
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(QA_LAST_VIEW_KEY) || 'null')
+      if (saved?.questionId) {
+        const q = questions.find((q) => q.id === saved.questionId)
+        if (q) {
+          setSelectedQuestion(q)
+          setView('detail')
+        }
+      }
+    } catch {}
+  }, [loading, questions])
+
+  useEffect(() => {
+    // 복원 시도가 끝나기 전에 이 effect가 먼저 돌면, 아직 읽지도 않은 저장값을
+    // 초기 상태(view='list')를 보고 지워버린다 — 그래서 복원이 끝난 뒤에만 기록한다
+    if (!restoredViewRef.current) return
+    if (view === 'detail' && selectedQuestion) {
+      sessionStorage.setItem(QA_LAST_VIEW_KEY, JSON.stringify({ questionId: selectedQuestion.id }))
+    } else if (view === 'list') {
+      sessionStorage.removeItem(QA_LAST_VIEW_KEY)
+    }
+  }, [view, selectedQuestion])
 
   // 목록에서 스크롤을 내린 채로 글을 선택하면, 상세 화면도 그 위치 그대로 이어져
   // 제목/본문 윗부분이 화면 위로 잘려 보인다. 화면(글쓰기/상세)이 바뀔 때는 맨 위로 올린다.

@@ -13,8 +13,12 @@ import { getSession, heartbeat } from './utils/auth'
 
 const HEARTBEAT_MS = 30 * 1000
 
+const CURRENT_PAGE_KEY = 'pt-current-page'
+
 export default function App() {
-  const [currentPage, setCurrentPage] = useState('analysis')
+  // 새로고침해도 방금 있던 탭(분석실/Q&A/돌발연습)에 그대로 남아있게 한다.
+  // 예전엔 항상 'analysis'로 초기화돼서, Q&A를 보다가 새로고침하면 메인으로 튕겨나갔다.
+  const [currentPage, setCurrentPage] = useState(() => sessionStorage.getItem(CURRENT_PAGE_KEY) || 'analysis')
   const [showProfile, setShowProfile] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
   const [jumpWeek, setJumpWeek] = useState(null)
@@ -51,6 +55,10 @@ export default function App() {
     return () => clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    sessionStorage.setItem(CURRENT_PAGE_KEY, currentPage)
+  }, [currentPage])
+
   const handleJumpToWeek = (week) => {
     setJumpWeek(week)
     setCurrentPage('analysis')
@@ -61,7 +69,7 @@ export default function App() {
       case 'analysis':
         return <VideoAnalysisRoom jumpWeek={jumpWeek} onJumpConsumed={() => setJumpWeek(null)} />
       case 'qa':
-        return <QACommunity author={author} onLogout={() => setSession(null)} />
+        return <QACommunity author={author} onLogout={() => { setSession(null); setCurrentPage('analysis') }} />
       case 'practice':
         return (
           <PracticeRoom
@@ -109,7 +117,7 @@ export default function App() {
       {showProfile && (
         <ProfileModal
           author={author}
-          onLoggedOut={() => { setShowProfile(false); setSession(null) }}
+          onLoggedOut={() => { setShowProfile(false); setSession(null); setCurrentPage('analysis') }}
           onClose={() => setShowProfile(false)}
         />
       )}

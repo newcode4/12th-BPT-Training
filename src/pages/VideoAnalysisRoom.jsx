@@ -405,7 +405,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   }
 
   // "내 시뮬레이션 모아보기"에서 링크만 붙여넣어 바로 등록 (지금 선택된 주차/폴더에 걸린다)
-  const handleAddMyLink = async (url) => {
+  const handleAddMyLink = async (url, startSeconds = 0) => {
     const videoId = parseYouTubeUrl(url)
     if (!videoId) return null
     const analysis = {
@@ -414,8 +414,9 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
       folder: selectedFolder,
       source: 'youtube',
       videoId,
-      startSeconds: 0,
+      startSeconds,
       scraps: [],
+      feedbackList: [],
       author,
       uploadedAt: new Date().toISOString(),
     }
@@ -428,13 +429,27 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
     return analysis
   }
 
-  const handleSaveFeedback = (id, feedback) => {
+  // 이름(제목)이나 시작 시간처럼, 통째로 덮어써도 되는 필드를 저장한다
+  const persistMySimUpdate = (id, patch) => {
     const target = analyses.find(a => a.id === id)
     if (!target) return
-    const updated = { ...target, feedback }
+    const updated = { ...target, ...patch }
     setAnalyses(analyses.map(a => a.id === id ? updated : a))
     putRecord('analysis', updated, { author: updated.author || author, week: updated.week })
-      .catch(e => console.error('피드백 저장 실패', e))
+      .catch(e => console.error('시뮬레이션 저장 실패', e))
+  }
+
+  const handleAddSimFeedback = (id, text) => {
+    const target = analyses.find(a => a.id === id)
+    if (!target) return
+    const entry = { id: generateUUID(), text, createdAt: new Date().toISOString() }
+    persistMySimUpdate(id, { feedbackList: [entry, ...(target.feedbackList || [])] })
+  }
+
+  const handleDeleteSimFeedback = (id, feedbackId) => {
+    const target = analyses.find(a => a.id === id)
+    if (!target) return
+    persistMySimUpdate(id, { feedbackList: (target.feedbackList || []).filter(f => f.id !== feedbackId) })
   }
 
   const handleYtUrlChange = (url) => {
@@ -722,7 +737,9 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
             <MySimulationsOverview
               analyses={myAllAnalyses}
               onAddLink={handleAddMyLink}
-              onSaveFeedback={handleSaveFeedback}
+              onUpdateMeta={persistMySimUpdate}
+              onAddFeedback={handleAddSimFeedback}
+              onDeleteFeedback={handleDeleteSimFeedback}
               onDelete={handleDeleteAnalysis}
             />
           </div>
