@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, useEffect } from 'react'
 import { PenLine, Shuffle, AlertTriangle, Loader2, CloudOff, Search, Check, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import { getRandomItem } from '../utils/formatters'
 import { supabase, supabaseConfigured } from '../utils/supabase'
@@ -26,7 +25,7 @@ function Chip({ active, onClick, children }) {
   )
 }
 
-export default function PracticeRoom() {
+export default function PracticeRoom({ initialScriptFilter, onInitialFilterConsumed }) {
   const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
@@ -43,12 +42,7 @@ export default function PracticeRoom() {
   const [practiceBlind, setPracticeBlind] = useState(false)
   // questionId -> { id, text } (내가 쓴 스크립트만)
   const [scripts, setScripts] = useState({})
-  const [scriptsLoaded, setScriptsLoaded] = useState(false)
   const author = localStorage.getItem('qa-author') || '익명'
-
-  const [showNudge, setShowNudge] = useState(false)
-  const [nudgeCount, setNudgeCount] = useState(0)
-  const nudgeShownRef = useRef(false)
 
   useEffect(() => {
     listRecords('script', { author })
@@ -58,24 +52,15 @@ export default function PracticeRoom() {
         setScripts(map)
       })
       .catch(e => console.error('스크립트 불러오기 실패', e))
-      .finally(() => setScriptsLoaded(true))
   }, [author])
 
-  // 페이지에 처음 들어왔을 때 아직 안 쓴 원고가 있으면 한 번 알려준다.
-  // 특정 질문을 바로 열어버리진 않고, 미작성 목록으로 보내서 직접 고르게 한다.
+  // 메인 화면의 미답변 알림 팝업에서 "답변 작성하러 가기"를 누르고 들어온 경우,
+  // 미작성 필터를 자동으로 켜준다.
   useEffect(() => {
-    if (nudgeShownRef.current || loading || !scriptsLoaded) return
-    const unwritten = questions.filter((q) => !scripts[q.id]?.text)
-    if (unwritten.length === 0) return
-    nudgeShownRef.current = true
-    setNudgeCount(unwritten.length)
-    setShowNudge(true)
-  }, [loading, scriptsLoaded, questions, scripts])
-
-  const handleGoToUnwritten = () => {
-    setShowNudge(false)
-    setScriptFilter('unwritten')
-  }
+    if (!initialScriptFilter) return
+    setScriptFilter(initialScriptFilter)
+    onInitialFilterConsumed?.()
+  }, [initialScriptFilter, onInitialFilterConsumed])
 
   useEffect(() => {
     if (!supabaseConfigured) {
@@ -352,42 +337,6 @@ export default function PracticeRoom() {
             </div>
           )}
         </div>
-      )}
-
-      {showNudge && createPortal(
-        <div
-          className="anim-fade fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setShowNudge(false)}
-        >
-          <div
-            className="anim-modal bg-surface rounded-2xl shadow-xl w-full max-w-sm p-6 border border-white/10 text-center space-y-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mx-auto w-12 h-12 rounded-full bg-brand-light flex items-center justify-center">
-              <AlertTriangle size={22} className="text-brand" />
-            </div>
-            <div>
-              <p className="font-extrabold text-lg">아직 답변하지 않은 돌발질문이 있습니다</p>
-              <p className="text-sm text-gray-400 mt-1">{nudgeCount}개가 남아있어요. 미작성 목록으로 가볼까요?</p>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={() => setShowNudge(false)}
-                className="flex-1 bg-white/10 hover:bg-white/15 text-gray-300 font-bold py-2.5 rounded-xl text-sm transition"
-              >
-                나중에
-              </button>
-              <button
-                onClick={handleGoToUnwritten}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition active:scale-95"
-              >
-                <PenLine size={14} />
-                답변 작성하러 가기
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
       )}
 
       {practiceQuestion && (

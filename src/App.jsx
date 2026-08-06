@@ -5,6 +5,7 @@ import WelcomeModal from './components/WelcomeModal'
 import Footer from './components/Footer'
 import SimulatorShortcut from './components/SimulatorShortcut'
 import FeedbackDigest from './components/FeedbackDigest'
+import UnansweredNudge from './components/UnansweredNudge'
 import VideoAnalysisRoom from './pages/VideoAnalysisRoom'
 import QACommunity from './pages/QACommunity'
 import PracticeRoom from './pages/PracticeRoom'
@@ -17,6 +18,7 @@ export default function App() {
   const [showProfile, setShowProfile] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
   const [jumpWeek, setJumpWeek] = useState(null)
+  const [practiceInitialFilter, setPracticeInitialFilter] = useState(null)
   const [session, setSession] = useState(() => getSession())
   const [checkingSession, setCheckingSession] = useState(true)
   const author = session?.name || ''
@@ -61,7 +63,12 @@ export default function App() {
       case 'qa':
         return <QACommunity author={author} onLogout={() => setSession(null)} />
       case 'practice':
-        return <PracticeRoom />
+        return (
+          <PracticeRoom
+            initialScriptFilter={practiceInitialFilter}
+            onInitialFilterConsumed={() => setPracticeInitialFilter(null)}
+          />
+        )
       default:
         return <VideoAnalysisRoom jumpWeek={jumpWeek} onJumpConsumed={() => setJumpWeek(null)} />
     }
@@ -93,6 +100,11 @@ export default function App() {
       </main>
       <Footer />
       <SimulatorShortcut raised={currentPage === 'qa'} />
+
+      <UnansweredNudge
+        author={author}
+        onGoToPractice={() => { setCurrentPage('practice'); setPracticeInitialFilter('unwritten') }}
+      />
 
       {showProfile && (
         <ProfileModal
