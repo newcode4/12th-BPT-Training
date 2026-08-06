@@ -152,17 +152,36 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
     listRecords('replay').then(setAdminReplays).catch(() => {})
   }, [])
 
-  // 관리자가 추가한 회차가 큐레이션 목록과 날짜가 겹치면 관리자 쪽을 우선한다 (최신으로 교체 가능하게)
+  // 관리자가 추가한 회차가 큐레이션 목록과 날짜가 겹치면 관리자 쪽을 우선한다 (최신으로 교체 가능하게).
+  // 삭제 표시(deleted)만 붙은 레코드도 "이 날짜는 관리자가 손을 댔다"는 의미라 큐레이션 쪽은 계속 숨긴다.
   const curatedFiltered = CURATED_REPLAYS.filter(
     (c) => !adminReplays.some((a) => a.date === c.date)
   )
-  const allReplays = [...adminReplays, ...curatedFiltered].sort((a, b) => b.date.localeCompare(a.date))
+  const allReplays = [...adminReplays.filter((r) => !r.deleted), ...curatedFiltered].sort((a, b) => b.date.localeCompare(a.date))
   const replays = allReplays.filter((r) => matchesWeekFilter(weekFilter, r.week ?? '0'))
   const activeReplay = replays.find((r) => r.videoId === activeVideoId) || allReplays.find((r) => r.videoId === activeVideoId)
 
-  const handleDelete = (id) => {
-    setAdminReplays(adminReplays.filter((r) => r.id !== id))
-    removeRecord('replay', id).catch((e) => console.error('다시보기 삭제 실패', e))
+  // 코드에 박아둔 큐레이션 회차는 DB 레코드가 없어서 그냥 지울 수가 없다.
+  // "삭제됨" 표시가 붙은 레코드를 하나 만들어 그 날짜의 큐레이션 항목을 영구히 가려버린다.
+  const handleDelete = (replay) => {
+    const isCuratedDate = CURATED_REPLAYS.some((c) => c.date === replay.date)
+    if (replay.id && !isCuratedDate) {
+      setAdminReplays((prev) => prev.filter((r) => r.id !== replay.id))
+      removeRecord('replay', replay.id).catch((e) => console.error('다시보기 삭제 실패', e))
+    } else {
+      const tombstone = { id: replay.id || generateUUID(), date: replay.date, videoId: replay.videoId, week: replay.week, deleted: true }
+      setAdminReplays((prev) => [tombstone, ...prev.filter((r) => r.id !== tombstone.id)])
+      putRecord('replay', tombstone).catch((e) => console.error('다시보기 삭제 실패', e))
+    }
+    if (activeVideoId === replay.videoId) setActiveVideoId(null)
+  }
+
+  // 큐레이션 회차든 관리자가 넣은 회차든, 주차를 바꾸면 그 자리에 새 소속으로 덮어쓴다
+  // (같은 날짜에 관리자 레코드가 생기면 큐레이션 원본은 자동으로 가려진다).
+  const handleMoveWeek = (replay, newWeek) => {
+    const updated = { id: replay.id || generateUUID(), date: replay.date, videoId: replay.videoId, week: newWeek }
+    setAdminReplays((prev) => [updated, ...prev.filter((r) => r.id !== updated.id)])
+    putRecord('replay', updated).catch((e) => console.error('회차 주차 변경 실패', e))
   }
 
   const handleSelectFilter = (filterId) => {
@@ -236,34 +255,66 @@ export default function AllReplaysArchive({ onAddToAnalysis }) {
           </div>
 
           {/* 날짜 토글 필터 */}
-          <div className="flex flex-wrap gap-2">
-            {replays.map((r) => (
-              <span key={r.id || r.videoId} className="inline-flex items-center">
+          {admin ? (
+            <div className="space-y-1.5">
+              {replays.map((r) => (
+                <div
+                  key={r.id || r.videoId}
+                  className="flex items-center gap-1.5"
+                >
+                  <button
+                    onClick={() => setActiveVideoId(r.videoId)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition ${
+                      activeVideoId === r.videoId
+                        ? 'bg-brand text-white'
+                        : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                    }`}
+                  >
+                    {formatArchiveDate(r.date)}
+                  </button>
+                  <select
+                    value={r.week ?? '0'}
+                    onChange={(e) => handleMoveWeek(r, e.target.value)}
+                    title="이 회차의 소속 필터 옮기기"
+                    className="text-[11px] font-bold p-1.5 rounded-lg bg-surface-alt text-gray-300 border border-white/10 focus:outline-none focus:border-brand"
+                  >
+                    {ADMIN_WEEK_OPTIONS.map((f) => (
+                      <option key={f.id} value={f.id}>{f.label}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => handleDelete(r)}
+                    className="p-1.5 rounded-lg bg-surface-alt hover:bg-red-500/20 text-gray-500 hover:text-red-400"
+                    title="이 회차 삭제"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+              {replays.length === 0 && (
+                <p className="text-xs text-gray-500 py-2">이 범위에는 아직 등록된 회차가 없어요</p>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {replays.map((r) => (
                 <button
+                  key={r.id || r.videoId}
                   onClick={() => setActiveVideoId(r.videoId)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition ${
                     activeVideoId === r.videoId
                       ? 'bg-brand text-white'
                       : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
-                  } ${admin && r.id ? 'rounded-r-none' : ''}`}
+                  }`}
                 >
                   {formatArchiveDate(r.date)}
                 </button>
-                {admin && r.id && (
-                  <button
-                    onClick={() => handleDelete(r.id)}
-                    className="px-1.5 py-1.5 rounded-r-lg bg-surface-alt hover:bg-red-500/20 text-gray-500 hover:text-red-400 border-l border-white/10"
-                    title="이 회차 삭제"
-                  >
-                    <Trash2 size={11} />
-                  </button>
-                )}
-              </span>
-            ))}
-            {replays.length === 0 && (
-              <p className="text-xs text-gray-500 py-2">이 범위에는 아직 등록된 회차가 없어요</p>
-            )}
-          </div>
+              ))}
+              {replays.length === 0 && (
+                <p className="text-xs text-gray-500 py-2">이 범위에는 아직 등록된 회차가 없어요</p>
+              )}
+            </div>
+          )}
 
           {activeVideoId ? (
             <div className="space-y-2">
