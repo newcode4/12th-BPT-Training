@@ -18,9 +18,16 @@ import WeekInsights from '../components/WeekInsights'
 import WeekFeedback from '../components/WeekFeedback'
 import CurriculumOverview from '../components/CurriculumOverview'
 import MySimulationsOverview from '../components/MySimulationsOverview'
+import WeekScraps from '../components/WeekScraps'
 import { WEEKS } from '../utils/weeks'
 
-const FULL_RECORDING_FOLDER = '전체 녹음'
+// 원래 "전체 녹음"이라는 하나의 폴더였는데, 이름을 "전체"로 바꾸고 의미도 바꿨다 —
+// 이걸 고르면 그 주차의 모든 카테고리(녹음/스크랩)를 한꺼번에 보여주는 ALL 뷰가 된다.
+// 값 자체는 그대로 각 항목의 기본 폴더로도 쓰인다(따로 폴더를 안 고르면 여기 담긴다).
+const FULL_RECORDING_FOLDER = '전체'
+const isAllFolder = (folder) => folder === FULL_RECORDING_FOLDER
+const folderMatches = (itemFolder, selected) =>
+  isAllFolder(selected) || (itemFolder || FULL_RECORDING_FOLDER) === selected
 
 export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   const [selectedWeek, setSelectedWeek] = useState('0')
@@ -56,24 +63,19 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
     onJumpConsumed?.()
   }, [jumpWeek])
 
-  const [liveScrapCounts, setLiveScrapCounts] = useState({ byWeek: {}, byFolder: {} })
+  // 목록(사이드바 카운트용)과 "이 카테고리의 라이브 스크랩" 섹션이 같은 원본을 쓴다 —
+  // 카운트만 갖고 있으면 실제 항목을 보여줄 수가 없어서, 통째로 들고 있다가 필요한 대로 걸러 쓴다.
+  const [liveScraps, setLiveScraps] = useState([])
+
+  const loadLiveScraps = () => {
+    listRecords('live_scrap', { author }).then(setLiveScraps).catch(() => {})
+  }
 
   useEffect(() => {
     // 시뮬레이션 분석(녹음/유튜브 링크)은 개인 기록이라 본인 것만 불러온다
     listRecords('analysis', { author }).then(setAnalyses).catch((e) => console.error('분석 불러오기 실패', e))
     listRecords('insight').then(setInsights).catch((e) => console.error('인사이트 불러오기 실패', e))
-    // 라이브 스크랩 카운트 로드
-    listRecords('live_scrap', { author }).then((rows) => {
-      const byWeek = {}
-      const byFolder = {}
-      for (const r of rows) {
-        const w = r.week || '0'
-        byWeek[w] = (byWeek[w] || 0) + 1
-        const key = `${w}::${r.folder || '전체 녹음'}`
-        byFolder[key] = (byFolder[key] || 0) + 1
-      }
-      setLiveScrapCounts({ byWeek, byFolder })
-    }).catch(() => {})
+    loadLiveScraps()
   }, [author])
 
   // setState(updaterFn) 형태는 React가 fn을 "당장"이 아니라 렌더 단계에서 나중에 실행한다 —
@@ -408,29 +410,32 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
 
   const countByWeek = (weekId) => {
     const analysisCount = analyses.filter(a => (a.week || '0') === weekId && a.source !== 'youtube').length
-    const scrapCount = liveScrapCounts.byWeek[weekId] || 0
+    const scrapCount = liveScraps.filter(s => (s.week || '0') === weekId).length
     return analysisCount + scrapCount
   }
+  // "전체"를 고르면 그 주차 전체(모든 카테고리) 합계를 보여준다 — 낱개 폴더가 아니라 ALL 뷰라서
   const countByFolder = (folder) => {
-    const analysisCount = analyses.filter(a => (a.week || '0') === selectedWeek && (a.folder || FULL_RECORDING_FOLDER) === folder && a.source !== 'youtube').length
-    const scrapCount = liveScrapCounts.byFolder[`${selectedWeek}::${folder}`] || 0
+    const analysisCount = analyses.filter(a => (a.week || '0') === selectedWeek && folderMatches(a.folder, folder) && a.source !== 'youtube').length
+    const scrapCount = liveScraps.filter(s => (s.week || '0') === selectedWeek && folderMatches(s.folder, folder)).length
     return analysisCount + scrapCount
   }
   // 음성 녹음 분석 피드백은 파일(녹음) 전용 — 유튜브 소스는 "내 시뮬레이션 모아보기"에서만 다룬다
   const analysesInFolder = analyses
-    .filter(a => (a.week || '0') === selectedWeek && (a.folder || FULL_RECORDING_FOLDER) === selectedFolder && a.source !== 'youtube')
+    .filter(a => (a.week || '0') === selectedWeek && folderMatches(a.folder, selectedFolder) && a.source !== 'youtube')
     .sort((a, b) => {
       const diff = new Date(a.uploadedAt) - new Date(b.uploadedAt)
       return sortOrder === 'oldest' ? diff : -diff
     })
+  // "이 카테고리의 라이브 스크랩" 섹션에 보여줄 목록 — ALL(전체)일 땐 이 주차의 모든 카테고리를 합친다
+  const scrapsInFolder = liveScraps
+    .filter(s => (s.week || '0') === selectedWeek && folderMatches(s.folder, selectedFolder))
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   const weekLabel = WEEKS.find(w => w.id === selectedWeek)?.label
   // 어느 주차/폴더든 상관없이 내가 올린 유튜브 시뮬레이션을 한 번에 모아 보는 용도
   // (analyses는 이미 author로 스코핑됨. 파일/녹음은 "음성 녹음 분석 피드백"에서 따로 다룬다)
   const myAllAnalyses = analyses
     .filter(a => a.source === 'youtube')
     .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
-  // 모아보기에서 이 주차/폴더로 지정해둔 유튜브 시뮬레이션은, 그 카테고리에서도 보인다
-  const myFolderAnalyses = myAllAnalyses.filter(a => (a.week || '0') === selectedWeek && (a.folder || FULL_RECORDING_FOLDER) === selectedFolder)
 
   // 왼쪽 메뉴(주차/폴더)를 눌렀을 때 실제로 화면이 바뀐 걸 느낄 수 있도록,
   // 관련 콘텐츠 쪽으로 스크롤해준다. 사이드바가 화면 밖에 있으면 클릭해도 아무 변화가
@@ -776,23 +781,15 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
           </div>
         )}
 
-        {/* 모아보기에서 이 주차로 지정해둔 유튜브 시뮬레이션 — 왼쪽 패널에서 주차/폴더에 맞게 보인다 */}
-        {!showAllMine && myFolderAnalyses.length > 0 && (
-          <div id="youtube-simulation-section" className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6 scroll-mt-4">
-            <h3 className="flex items-center gap-2 text-lg font-extrabold mb-1">
-              <LayoutGrid size={18} className="text-gray-500" />
-              {weekLabel} · {selectedFolder} 라이브 스크랩 ({myFolderAnalyses.length})
-            </h3>
-            <p className="text-xs text-gray-500 mb-3">현재 폴더에 스크랩된 라이브 영상이에요</p>
-            <MySimulationsOverview
-              analyses={myFolderAnalyses}
-              author={author}
-              onAddLink={handleAddMyLink}
-              onUpdateMeta={persistMySimUpdate}
-              onDelete={handleDeleteAnalysis}
-              hideAddForm
-            />
-          </div>
+        {/* 지금 보고 있는 주차/카테고리에 걸린 라이브 스크랩 — "전체"를 보고 있으면 이 주차의
+            모든 카테고리 스크랩을 한꺼번에 보여준다(ALL). 여기서 바로 재생/수정/삭제까지 된다. */}
+        {!showAllMine && (
+          <WeekScraps
+            scraps={scrapsInFolder}
+            folders={folders}
+            showFolderBadge={isAllFolder(selectedFolder)}
+            onChanged={loadLiveScraps}
+          />
         )}
 
         {/* 음성 녹음 분석 피드백 — 유튜브는 "내 시뮬레이션 모아보기"로 옮겨서, 여긴 파일(녹음) 전용이다 */}

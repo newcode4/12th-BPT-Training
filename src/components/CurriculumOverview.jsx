@@ -3,7 +3,7 @@ import { ChevronDown, ListTree } from 'lucide-react'
 import { WEEKS } from '../utils/weeks'
 import { WEEK_CURRICULUM } from '../utils/curriculum'
 
-const FULL_RECORDING_FOLDER = '전체 녹음'
+const FULL_RECORDING_FOLDER = '전체'
 
 // 주차를 하나씩 넘기지 않아도, 전체 커리큘럼(세부 폴더)을 한 화면에서 보고 바로 이동할 수 있게
 export default function CurriculumOverview({ onSelect }) {
@@ -23,7 +23,7 @@ export default function CurriculumOverview({ onSelect }) {
       </button>
 
       {/* 주차마다 카드를 따로 두면 옆줄과 비교하며 훑기 번거로워서, 한 주차 = 한 줄로 펼친다.
-          "전체 녹음" 칩은 빼고 주차 이름 자체를 누르면 전체 녹음으로 가게 해서 줄을 줄였고,
+          "전체" 칩은 빼고 주차 이름 자체를 누르면 전체(ALL)로 가게 해서 줄을 줄였고,
           그래도 폴더가 많은 주(3주차 등)는 줄바꿈 대신 가로 스크롤로 한 줄을 유지한다. */}
       {open && (
         <div className="p-4 md:p-6 pt-0 space-y-2">

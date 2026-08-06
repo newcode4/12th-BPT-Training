@@ -7,6 +7,7 @@ import SimulatorShortcut from './components/SimulatorShortcut'
 import FeedbackDigest from './components/FeedbackDigest'
 import UnansweredNudge from './components/UnansweredNudge'
 import CommunityPulse from './components/CommunityPulse'
+import SimulatorGuideModal from './components/SimulatorGuideModal'
 import VideoAnalysisRoom from './pages/VideoAnalysisRoom'
 import QACommunity from './pages/QACommunity'
 import PracticeRoom from './pages/PracticeRoom'
@@ -23,6 +24,7 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(() => sessionStorage.getItem(CURRENT_PAGE_KEY) || 'analysis')
   const [showProfile, setShowProfile] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
+  const [showGuide, setShowGuide] = useState(false)
   const [jumpWeek, setJumpWeek] = useState(null)
   const [practiceInitialFilter, setPracticeInitialFilter] = useState(null)
   const [session, setSession] = useState(() => getSession())
@@ -60,6 +62,21 @@ export default function App() {
   useEffect(() => {
     sessionStorage.setItem(CURRENT_PAGE_KEY, currentPage)
   }, [currentPage])
+
+  // 시뮬레이션 활용법 안내 영상 — 계정마다 최초 1번만 자동으로 띄운다.
+  // 한 번 닫으면 다시 자동으로는 안 뜨고, 필요하면 상단 가이드 버튼으로 언제든 다시 볼 수 있다.
+  useEffect(() => {
+    if (!author) return
+    const key = `pt-guide-seen-${author}`
+    if (localStorage.getItem(key)) return
+    const timer = setTimeout(() => setShowGuide(true), 1000)
+    return () => clearTimeout(timer)
+  }, [author])
+
+  const closeGuide = () => {
+    setShowGuide(false)
+    if (author) localStorage.setItem(`pt-guide-seen-${author}`, 'true')
+  }
 
   const handleJumpToWeek = (week) => {
     setJumpWeek(week)
@@ -105,6 +122,7 @@ export default function App() {
         setCurrentPage={setCurrentPage}
         onOpenProfile={() => setShowProfile(true)}
         onOpenFeedback={() => setShowFeedback(true)}
+        onOpenGuide={() => setShowGuide(true)}
       />
       {/* key를 바꿔 페이지가 바뀔 때마다 등장 모션이 다시 돈다 */}
       <main key={currentPage} className="anim-rise flex-1 max-w-5xl w-full mx-auto px-4 py-6">
@@ -133,6 +151,8 @@ export default function App() {
           onClose={() => setShowFeedback(false)}
         />
       )}
+
+      {showGuide && <SimulatorGuideModal onClose={closeGuide} />}
     </div>
   )
 }

@@ -170,7 +170,7 @@ function ScrapForm({ replay, folders, selectedWeek, author, getCurrentSeconds, o
       videoId: replay.videoId,
       replayDate: replay.date,
       week,
-      folder: folder || folders?.[0] || '전체 녹음',
+      folder: folder || folders?.[0] || '전체',
       title: title.trim(),
       timestamp: formatTime(getCurrentSeconds?.() || 0),
       memo: memo.trim(),
@@ -296,7 +296,7 @@ function ScrapEditForm({ scrap, folders, getCurrentSeconds, onCancel, onSaved })
       ...scrap,
       title: title.trim(),
       memo: memo.trim(),
-      folder: folder || '전체 녹음',
+      folder: folder || '전체',
       week,
       timestamp: timestamp.trim(),
     }

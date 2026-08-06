@@ -1,4 +1,4 @@
-import { Video, MessageCircle, PenLine, Trophy, Rocket, User, PartyPopper, Sparkles } from 'lucide-react'
+import { Video, MessageCircle, PenLine, Trophy, Rocket, User, PartyPopper, Sparkles, PlayCircle } from 'lucide-react'
 
 const navItems = [
   { id: 'analysis', label: '시뮬레이션 분석실', short: '분석실', icon: Video },
@@ -9,7 +9,7 @@ const navItems = [
 
 const SIMULATOR_URL = 'https://azuremooni.github.io/businesspt-simulator/'
 
-export default function Navigation({ currentPage, setCurrentPage, onOpenProfile, onOpenFeedback }) {
+export default function Navigation({ currentPage, setCurrentPage, onOpenProfile, onOpenFeedback, onOpenGuide }) {
   return (
     <>
       {/* 상단 바 */}
@@ -63,6 +63,13 @@ export default function Navigation({ currentPage, setCurrentPage, onOpenProfile,
               >
                 <Rocket size={17} />
               </a>
+              <button
+                onClick={onOpenGuide}
+                title="시뮬레이션 활용법 (안내 영상)"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-surface-alt hover:bg-brand-light text-gray-400 hover:text-brand transition"
+              >
+                <PlayCircle size={17} />
+              </button>
               <button
                 onClick={onOpenFeedback}
                 title="피드백 모음"

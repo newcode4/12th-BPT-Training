@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, PenLine } from 'lucide-react'
+import { AlertTriangle, PenLine, Trophy } from 'lucide-react'
 import { supabase, supabaseConfigured } from '../utils/supabase'
 import { listRecords } from '../utils/cloudStore'
+import { ROSTER } from '../utils/auth'
 
 const NUDGE_INTERVAL_MS = 30 * 60 * 1000 // 매번 뜨면 스팸이라 최소 30분 간격을 둔다
 const CHECK_DELAY_MS = 1500 // 페이지 들어오자마자 뜨면 정신없으니 살짝 늦춘다
@@ -28,6 +29,8 @@ function writeState(author, state) {
 export default function UnansweredNudge({ author, onGoToPractice }) {
   const [count, setCount] = useState(0)
   const [visible, setVisible] = useState(false)
+  const [percent, setPercent] = useState(null)
+  const [rank, setRank] = useState(null)
 
   // 개발 모드(StrictMode)는 effect를 mount→cleanup→mount로 두 번 돌린다.
   // "한 번만 실행" 표시를 타이머 예약 전에 남기면, 첫 mount의 cleanup이 타이머를
@@ -40,13 +43,23 @@ export default function UnansweredNudge({ author, onGoToPractice }) {
     const timer = setTimeout(async () => {
       if (cancelled) return
       try {
-        const [{ data: questions }, scripts] = await Promise.all([
+        // 랭킹 계산까지 하려면 전체 학생의 스크립트가 다 필요해서, author 없이 통째로 받아온다
+        const [{ data: questions }, allScripts] = await Promise.all([
           supabase.from('questions').select('id').eq('category', 'unexpected'),
-          listRecords('script', { author }),
+          listRecords('script'),
         ])
         if (cancelled) return
-        const written = new Set(scripts.filter((s) => s.text?.trim()).map((s) => s.questionId))
-        const unwritten = (questions || []).filter((q) => !written.has(q.id)).length
+
+        const total = (questions || []).length
+        const writtenByAuthor = {}
+        for (const s of allScripts) {
+          if (!s.text?.trim() || !s.author) continue
+          writtenByAuthor[s.author] = writtenByAuthor[s.author] || new Set()
+          writtenByAuthor[s.author].add(s.questionId)
+        }
+
+        const myWritten = writtenByAuthor[author]?.size || 0
+        const unwritten = Math.max(0, total - myWritten)
         if (unwritten === 0) return
 
         const state = readState(author)
@@ -54,8 +67,14 @@ export default function UnansweredNudge({ author, onGoToPractice }) {
         if (state.hideUntil && now < state.hideUntil) return
         if (state.lastShown && now - state.lastShown < NUDGE_INTERVAL_MS) return
 
+        // 등수는 작성한 스크립트 개수로 매긴다 — 동점이면 같은 등수(1,2,2,4식)
+        const counts = ROSTER.map((name) => writtenByAuthor[name]?.size || 0).sort((a, b) => b - a)
+        const myRank = counts.findIndex((c) => c <= myWritten) + 1
+
         writeState(author, { ...state, lastShown: now })
         setCount(unwritten)
+        setPercent(total > 0 ? Math.round((myWritten / total) * 100) : 0)
+        setRank(myRank || null)
         setVisible(true)
       } catch (e) {
         console.error('미답변 알림 확인 실패', e)
@@ -93,6 +112,23 @@ export default function UnansweredNudge({ author, onGoToPractice }) {
           <p className="font-extrabold text-lg">돌발을 마스터하면 더 이상 떨리지 않아요</p>
           <p className="text-sm text-gray-400 mt-1">아직 답변하지 않은 돌발질문이 {count}개 있어요</p>
         </div>
+
+        {(percent !== null || rank !== null) && (
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            {percent !== null && (
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-brand bg-brand-light px-2.5 py-1 rounded-full">
+                작성률 {percent}%
+              </span>
+            )}
+            {rank !== null && (
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
+                <Trophy size={11} />
+                내 등수 {rank}위
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-2 pt-1">
           <button
             onClick={() => setVisible(false)}
