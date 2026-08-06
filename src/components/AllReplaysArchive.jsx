@@ -137,7 +137,7 @@ function AdminAddReplayForm({ viewFilter, onAdded }) {
   )
 }
 
-export default function AllReplaysArchive({ currentWeek, folders, onAddToAnalysis }) {
+export default function AllReplaysArchive({ folders, onAddToAnalysis, onWeekChange }) {
   const [open, setOpen] = useState(false)
   const [activeVideoId, setActiveVideoId] = useState(null)
   const [adminReplays, setAdminReplays] = useState([])
@@ -163,8 +163,7 @@ export default function AllReplaysArchive({ currentWeek, folders, onAddToAnalysi
     (c) => !adminReplays.some((a) => a.date === c.date)
   )
   const allReplays = [...adminReplays.filter((r) => !r.deleted), ...curatedFiltered].sort((a, b) => b.date.localeCompare(a.date))
-  const effectiveWeek = currentWeek || weekFilter
-  const replays = allReplays.filter((r) => matchesWeekFilter(effectiveWeek, r.week ?? '0'))
+  const replays = allReplays.filter((r) => matchesWeekFilter(weekFilter, r.week ?? '0'))
   const activeReplay = replays.find((r) => r.videoId === activeVideoId) || allReplays.find((r) => r.videoId === activeVideoId)
 
   // 코드에 박아둔 큐레이션 회차는 DB 레코드가 없어서 그냥 지울 수가 없다.
@@ -193,6 +192,16 @@ export default function AllReplaysArchive({ currentWeek, folders, onAddToAnalysi
   const handleSelectFilter = (filterId) => {
     setWeekFilter(filterId)
     setActiveVideoId(null)
+    if (onWeekChange && ['0', '1', '2', '3', '4'].includes(filterId)) {
+      onWeekChange(filterId)
+    }
+  }
+
+  const handleVideoClick = (replay) => {
+    setActiveVideoId(replay.videoId)
+    if (onWeekChange && ['0', '1', '2', '3', '4'].includes(replay.week)) {
+      onWeekChange(replay.week)
+    }
   }
 
   // 주차 필터를 바꾸면 영상 영역(mountRef)이 DOM에서 사라졌다가 다시 생기는데,
@@ -244,23 +253,21 @@ export default function AllReplaysArchive({ currentWeek, folders, onAddToAnalysi
           )}
 
           {/* 주차 필터 */}
-          {!currentWeek && (
-            <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
-              {WEEK_FILTERS.map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => handleSelectFilter(f.id)}
-                  className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
-                    weekFilter === f.id
-                      ? 'bg-brand text-white'
-                      : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
+            {WEEK_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => handleSelectFilter(f.id)}
+                className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                  weekFilter === f.id
+                    ? 'bg-brand text-white'
+                    : 'bg-surface-alt text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
 
           {/* 날짜 토글 필터 */}
           {admin ? (
@@ -271,7 +278,7 @@ export default function AllReplaysArchive({ currentWeek, folders, onAddToAnalysi
                   className="flex items-center gap-1.5"
                 >
                   <button
-                    onClick={() => setActiveVideoId(r.videoId)}
+                    onClick={() => handleVideoClick(r)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition ${
                       activeVideoId === r.videoId
                         ? 'bg-brand text-white'
@@ -308,7 +315,7 @@ export default function AllReplaysArchive({ currentWeek, folders, onAddToAnalysi
               {replays.map((r) => (
                 <button
                   key={r.id || r.videoId}
-                  onClick={() => setActiveVideoId(r.videoId)}
+                  onClick={() => handleVideoClick(r)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition ${
                     activeVideoId === r.videoId
                       ? 'bg-brand text-white'
