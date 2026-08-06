@@ -364,12 +364,12 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
   }
 
   // "내 시뮬레이션 모아보기"에서 링크만 붙여넣어 바로 등록 (지금 선택된 주차/폴더에 걸린다)
-  const handleAddMyLink = async (url, startSeconds = 0) => {
+  const handleAddMyLink = async (url, startSeconds = 0, week = selectedWeek) => {
     const videoId = parseYouTubeUrl(url)
     if (!videoId) return null
     const analysis = {
       id: generateUUID(),
-      week: selectedWeek,
+      week,
       folder: selectedFolder,
       source: 'youtube',
       videoId,
@@ -380,7 +380,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
     }
     setAnalyses((prev) => [...prev, analysis])
     try {
-      await putRecord('analysis', analysis, { author, week: selectedWeek })
+      await putRecord('analysis', analysis, { author, week })
     } catch (e) {
       alert('시뮬레이션을 등록하지 못했어요: ' + e.message)
     }

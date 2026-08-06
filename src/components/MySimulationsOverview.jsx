@@ -390,6 +390,7 @@ function SimulationCard({
 export default function MySimulationsOverview({ analyses, author, onAddLink, onUpdateMeta, onDelete, hideAddForm = false }) {
   const [linkInput, setLinkInput] = useState('')
   const [addHms, setAddHms] = useState({ hours: 0, minutes: 0, seconds: 0 })
+  const [addWeek, setAddWeek] = useState('0')
   const [expandedId, setExpandedId] = useState(null)
   const [adding, setAdding] = useState(false)
 
@@ -405,7 +406,7 @@ export default function MySimulationsOverview({ analyses, author, onAddLink, onU
     }
     setAdding(true)
     const startSeconds = hmsToSeconds(addHms.hours, addHms.minutes, addHms.seconds)
-    const created = await onAddLink(url, startSeconds)
+    const created = await onAddLink(url, startSeconds, addWeek)
     setAdding(false)
     setLinkInput('')
     setAddHms({ hours: 0, minutes: 0, seconds: 0 })
@@ -444,6 +445,25 @@ export default function MySimulationsOverview({ analyses, author, onAddLink, onU
             <Plus size={15} />
             추가
           </button>
+        </div>
+        <div className="p-3 bg-surface-alt rounded-xl space-y-1.5">
+          <label className="flex items-center gap-1.5 text-xs font-bold text-gray-400">
+            <CalendarDays size={12} />
+            몇 주차인가요?
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {WEEKS.map((w) => (
+              <button
+                key={w.id}
+                onClick={() => setAddWeek(w.id)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                  addWeek === w.id ? 'bg-brand text-white' : 'bg-surface text-gray-400 hover:bg-white/10'
+                }`}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="p-3 bg-surface-alt rounded-xl">
           <TimeHMSInput
