@@ -19,6 +19,7 @@ import AllReplaysArchive from '../components/AllReplaysArchive'
 import WeekInsights from '../components/WeekInsights'
 import WeekFeedback from '../components/WeekFeedback'
 import CurriculumOverview from '../components/CurriculumOverview'
+import MySimulationsOverview from '../components/MySimulationsOverview'
 import { WEEKS } from '../utils/weeks'
 
 const FULL_RECORDING_FOLDER = '전체 녹음'
@@ -403,6 +404,39 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
     })
   }
 
+  // "내 시뮬레이션 모아보기"에서 링크만 붙여넣어 바로 등록 (지금 선택된 주차/폴더에 걸린다)
+  const handleAddMyLink = async (url) => {
+    const videoId = parseYouTubeUrl(url)
+    if (!videoId) return null
+    const analysis = {
+      id: generateUUID(),
+      week: selectedWeek,
+      folder: selectedFolder,
+      source: 'youtube',
+      videoId,
+      startSeconds: 0,
+      scraps: [],
+      author,
+      uploadedAt: new Date().toISOString(),
+    }
+    setAnalyses((prev) => [...prev, analysis])
+    try {
+      await putRecord('analysis', analysis, { author, week: selectedWeek })
+    } catch (e) {
+      alert('시뮬레이션을 등록하지 못했어요: ' + e.message)
+    }
+    return analysis
+  }
+
+  const handleSaveFeedback = (id, feedback) => {
+    const target = analyses.find(a => a.id === id)
+    if (!target) return
+    const updated = { ...target, feedback }
+    setAnalyses(analyses.map(a => a.id === id ? updated : a))
+    putRecord('analysis', updated, { author: updated.author || author, week: updated.week })
+      .catch(e => console.error('피드백 저장 실패', e))
+  }
+
   const handleYtUrlChange = (url) => {
     setYtUrlInput(url)
     const startFromUrl = parseYouTubeStartSeconds(url.trim())
@@ -674,61 +708,23 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
         {!showAllMine && <WeekReferenceVideos week={selectedWeek} />}
         {!showAllMine && <AllReplaysArchive onAddToAnalysis={handleAddReplayToAnalysis} />}
 
-        {/* 내 시뮬레이션 모아보기 — 주차/폴더 안 가리고 내가 올린 걸 한 번에 훑어보는 용도 */}
+        {/* 내 시뮬레이션 모아보기 — 주차/폴더 안 가리고 내가 올린 걸 순서대로 모아보고,
+            그 자리에서 바로 재생 + 피드백까지 끝낼 수 있게 한다 */}
         {showAllMine && (
           <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="flex items-center gap-2 text-lg font-extrabold">
-                <LayoutGrid size={18} className="text-gray-500" />
-                내 시뮬레이션 모아보기 ({myAllAnalyses.length})
-              </h3>
-            </div>
-            <p className="text-xs text-gray-500 mb-3">주차 상관없이 내가 올린 시뮬레이션이에요. 카드를 클릭하면 그 주차로 이동해서 이어볼 수 있어요</p>
-            <div className="stagger grid gap-3">
-              {myAllAnalyses.map((analysis) => (
-                <div
-                  key={analysis.id}
-                  onClick={() => handleLoadAnalysis(analysis)}
-                  className="lift p-4 border border-white/10 rounded-2xl cursor-pointer hover:bg-surface-alt active:bg-white/10"
-                >
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                        {analysis.source === 'youtube'
-                          ? <MonitorPlay size={14} className="text-red-500 shrink-0" />
-                          : <Upload size={14} className="text-gray-500 shrink-0" />}
-                        <h4 className="font-bold truncate min-w-0" title={analysisDisplayName(analysis)}>
-                          {analysisDisplayName(analysis)}
-                        </h4>
-                        <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-gray-400">
-                          {WEEKS.find(w => w.id === (analysis.week || '0'))?.label || `${analysis.week}주차`} · {analysis.folder || FULL_RECORDING_FOLDER}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-400">
-                        스크랩 {analysis.scraps?.length || 0}개 · {new Date(analysis.uploadedAt).toLocaleString('ko-KR')}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div onClick={(e) => e.stopPropagation()} className="flex gap-2">
-                        <button
-                          onClick={() => handleDeleteAnalysis(analysis.id)}
-                          className="p-2 border border-white/10 hover:border-red-500/30 hover:bg-red-500/10 text-gray-500 hover:text-red-500 rounded-lg transition"
-                          title="삭제"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                      <ChevronRight size={18} className="text-gray-600" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {myAllAnalyses.length === 0 && (
-                <p className="text-sm text-gray-500 text-center py-6">
-                  아직 등록한 시뮬레이션이 없어요. 아래에서 첫 시뮬레이션을 등록해보세요
-                </p>
-              )}
-            </div>
+            <h3 className="flex items-center gap-2 text-lg font-extrabold mb-1">
+              <LayoutGrid size={18} className="text-gray-500" />
+              내 시뮬레이션 모아보기 ({myAllAnalyses.length})
+            </h3>
+            <p className="text-xs text-gray-500 mb-3">
+              유튜브 링크를 붙여넣으면 바로 등록돼요. 카드를 누르면 그 자리에서 펼쳐져 재생하고 피드백을 남길 수 있어요
+            </p>
+            <MySimulationsOverview
+              analyses={myAllAnalyses}
+              onAddLink={handleAddMyLink}
+              onSaveFeedback={handleSaveFeedback}
+              onDelete={handleDeleteAnalysis}
+            />
           </div>
         )}
 
@@ -831,7 +827,8 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
           </div>
         )}
 
-        {/* 내 시뮬레이션 업로드 & 스크랩 */}
+        {/* 내 시뮬레이션 업로드 & 스크랩 — 모아보기에서는 링크 등록이 그 안에서 바로 되니 숨긴다 */}
+        {!showAllMine && (
         <div ref={playerSectionRef} className="bg-surface rounded-2xl shadow-card border border-white/10 scroll-mt-4 overflow-hidden">
           <button
             onClick={() => setAnalysisOpen(!analysisOpen)}
@@ -1070,6 +1067,7 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
           )}
           </div>
         </div>
+        )}
 
         {/* 인사이트 · 피드백 */}
         <div className="bg-surface rounded-2xl shadow-card border border-white/10 overflow-hidden">
