@@ -175,8 +175,8 @@ export async function loginAsStaff(name, pin) {
     return { ok: false, error: '서버 연결이 설정되지 않았어요.' }
   }
 
-  await supabase.from('sessions').delete().eq('name', name)
-
+  // 간부는 여러 기기에서 동시에 로그인할 수 있어야 해서(폰+노트북 등), 학생/관리자와
+  // 달리 기존 세션을 지우지 않는다 — 새 기기로 로그인해도 다른 기기가 안 끊긴다.
   const token = crypto.randomUUID()
   const nowIso = new Date().toISOString()
   const { data, error } = await supabase
