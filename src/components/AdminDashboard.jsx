@@ -218,8 +218,8 @@ export default function AdminDashboard({ onClose }) {
               {/* 열이 9개라 좁은 화면에서는 줄바꿈되며 깨지므로, 가로 스크롤 컨테이너 안에
                   최소 폭을 고정해서 항상 한 줄로 유지하고 필요하면 옆으로 스크롤하게 한다 */}
               <div className="hidden md:block overflow-x-auto">
-              <div className="min-w-[1010px]">
-              <div className="grid grid-cols-[160px_64px_76px_76px_76px_84px_76px_92px_92px_76px] gap-3 px-3 text-[11px] font-bold text-gray-500">
+              <div className="min-w-[760px]">
+              <div className="grid grid-cols-[96px_60px_68px_68px_64px_76px_68px_88px_88px_68px] gap-2 px-3 text-[11px] font-bold text-gray-500">
                 <SortHeader label="이름" sortKey="name" align="left" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortHeader label="접속" sortKey="online" onSort={handleSort} current={sortKey} dir={sortDir} />
                 <SortHeader label="로그인" icon={<LogIn size={11} />} sortKey="loginCount" onSort={handleSort} current={sortKey} dir={sortDir} />
@@ -235,7 +235,7 @@ export default function AdminDashboard({ onClose }) {
               {sortedRows.map((r) => (
                 <div
                   key={r.name}
-                  className="grid grid-cols-[160px_64px_76px_76px_76px_84px_76px_92px_92px_76px] gap-3 items-center bg-surface-alt rounded-xl px-3 py-2.5"
+                  className="grid grid-cols-[96px_60px_68px_68px_64px_76px_68px_88px_88px_68px] gap-2 items-center bg-surface-alt rounded-xl px-3 py-2.5"
                 >
                   <span className="font-bold text-sm flex items-center gap-1.5 truncate">
                     {r.online && <Circle size={7} className="fill-emerald-400 text-emerald-400 shrink-0" />}
