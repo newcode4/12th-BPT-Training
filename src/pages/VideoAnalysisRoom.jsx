@@ -28,7 +28,7 @@ const isAllFolder = (folder) => folder === FULL_RECORDING_FOLDER
 const folderMatches = (itemFolder, selected) =>
   isAllFolder(selected) || (itemFolder || FULL_RECORDING_FOLDER) === selected
 
-export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
+export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed, onOpenFeedback }) {
   const [selectedWeek, setSelectedWeek] = useState('0')
   const [selectedFolder, setSelectedFolder] = useState(FULL_RECORDING_FOLDER)
   const [showAllMine, setShowAllMine] = useState(false)
@@ -666,10 +666,21 @@ export default function VideoAnalysisRoom({ jumpWeek, onJumpConsumed }) {
             그 자리에서 바로 재생 + 피드백까지 끝낼 수 있게 한다 */}
         {showAllMine && (
           <div className="bg-surface rounded-2xl shadow-card border border-white/10 p-4 md:p-6">
-            <h3 className="flex items-center gap-2 text-lg font-extrabold mb-1">
-              <LayoutGrid size={18} className="text-gray-500" />
-              내 시뮬레이션 모아보기 ({myAllAnalyses.length})
-            </h3>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <h3 className="flex items-center gap-2 text-lg font-extrabold min-w-0">
+                <LayoutGrid size={18} className="text-gray-500 shrink-0" />
+                <span className="truncate">내 시뮬레이션 모아보기 ({myAllAnalyses.length})</span>
+              </h3>
+              {onOpenFeedback && (
+                <button
+                  onClick={onOpenFeedback}
+                  className="shrink-0 flex items-center gap-1.5 text-xs font-bold text-brand bg-brand-light hover:bg-brand hover:text-white px-3 py-1.5 rounded-full transition"
+                >
+                  <Sparkles size={13} />
+                  피드백 모음
+                </button>
+              )}
+            </div>
             <p className="text-xs text-gray-500 mb-3">
               유튜브 링크를 붙여넣으면 바로 등록돼요. 카드를 누르면 그 자리에서 펼쳐져 재생하고 피드백을 남길 수 있어요
             </p>

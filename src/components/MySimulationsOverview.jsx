@@ -246,10 +246,12 @@ function FeedbackSection({ analysis, author }) {
         </button>
       </div>
 
-      {!loading && entries.length > 0 && (
+      {!loading && entries.filter((f) => f.category === category).length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-xs font-bold text-gray-500">이전 피드백</p>
-          {entries.map((f) => (
+          <p className="text-xs font-bold text-gray-500">
+            이전 {FEEDBACK_CATEGORIES.find((c) => c.id === category)?.label}
+          </p>
+          {entries.filter((f) => f.category === category).map((f) => (
             <div key={f.id} className="flex items-start justify-between gap-2 p-2.5 bg-surface-alt rounded-xl">
               <div className="min-w-0">
                 <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mb-1 ${

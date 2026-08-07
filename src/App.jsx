@@ -13,6 +13,8 @@ import QACommunity from './pages/QACommunity'
 import PracticeRoom from './pages/PracticeRoom'
 import RankingPage from './pages/RankingPage'
 import { getSession, heartbeat } from './utils/auth'
+import { listRecords, putRecord } from './utils/cloudStore'
+import { generateUUID } from './utils/formatters'
 
 const HEARTBEAT_MS = 30 * 1000
 
@@ -74,6 +76,9 @@ export default function App() {
   }, [author])
 
   // 새로 생긴 "가이드"/"랭킹"에 빨간 점을 붙여서 눈에 띄게 한다 — 한 번 열어보면 사라진다.
+  // pt-guide-seen과는 별개의 키를 쓴다 — pt-guide-seen은 "자동 팝업을 한 번 띄웠는지"만 추적해서,
+  // 이 배지 기능이 생기기 전에 이미 안내 영상을 본 사람은 그 키가 이미 true라 배지가 아예 안 뜨는
+  // 문제가 있었다. 배지는 배지대로 독립적으로, 이번에 각 버튼을 눌러봤는지만 따진다.
   // localStorage만 갱신하고 끝내면 그 값을 다시 읽어줄 리렌더가 안 일어나서 점이 안 사라지니,
   // 상태로도 같이 들고 있는다.
   const [showGuideBadge, setShowGuideBadge] = useState(false)
@@ -81,19 +86,37 @@ export default function App() {
 
   useEffect(() => {
     if (!author) return
-    setShowGuideBadge(!localStorage.getItem(`pt-guide-seen-${author}`))
-    setShowRankingBadge(!localStorage.getItem(`pt-ranking-seen-${author}`))
+    setShowGuideBadge(!localStorage.getItem(`pt-badge-seen-guide-${author}`))
+    setShowRankingBadge(!localStorage.getItem(`pt-badge-seen-ranking-${author}`))
   }, [author])
+
+  // 관리자가 "누가 안내 영상을 봤는지" 확인할 수 있어야 해서, 로컬 저장뿐 아니라 서버에도
+  // 한 번만(중복 없이) 기록해둔다. 로컬 플래그는 자동 팝업/배지 제어용으로 계속 따로 쓴다.
+  const markGuideSeenOnServer = async () => {
+    if (!author) return
+    try {
+      const existing = await listRecords('guide_seen', { author })
+      if (existing.length === 0) {
+        await putRecord('guide_seen', { id: generateUUID(), author, seenAt: new Date().toISOString() }, { author })
+      }
+    } catch (e) {
+      console.error('안내 영상 시청 기록 실패', e)
+    }
+  }
 
   const closeGuide = () => {
     setShowGuide(false)
-    if (author) localStorage.setItem(`pt-guide-seen-${author}`, 'true')
+    if (author) {
+      localStorage.setItem(`pt-guide-seen-${author}`, 'true')
+      localStorage.setItem(`pt-badge-seen-guide-${author}`, 'true')
+    }
     setShowGuideBadge(false)
+    markGuideSeenOnServer()
   }
 
   useEffect(() => {
     if (currentPage === 'ranking' && author) {
-      localStorage.setItem(`pt-ranking-seen-${author}`, 'true')
+      localStorage.setItem(`pt-badge-seen-ranking-${author}`, 'true')
       setShowRankingBadge(false)
     }
   }, [currentPage, author])
@@ -106,7 +129,7 @@ export default function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'analysis':
-        return <VideoAnalysisRoom jumpWeek={jumpWeek} onJumpConsumed={() => setJumpWeek(null)} />
+        return <VideoAnalysisRoom jumpWeek={jumpWeek} onJumpConsumed={() => setJumpWeek(null)} onOpenFeedback={() => setShowFeedback(true)} />
       case 'qa':
         return <QACommunity author={author} onLogout={() => { setSession(null); setCurrentPage('analysis') }} />
       case 'practice':
@@ -119,7 +142,7 @@ export default function App() {
       case 'ranking':
         return <RankingPage author={author} />
       default:
-        return <VideoAnalysisRoom jumpWeek={jumpWeek} onJumpConsumed={() => setJumpWeek(null)} />
+        return <VideoAnalysisRoom jumpWeek={jumpWeek} onJumpConsumed={() => setJumpWeek(null)} onOpenFeedback={() => setShowFeedback(true)} />
     }
   }
 

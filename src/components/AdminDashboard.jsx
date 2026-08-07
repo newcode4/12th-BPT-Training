@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X, Users, LogIn, CalendarCheck2, MessageSquareText, Circle, Zap, Bookmark, LayoutGrid, PenLine, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { X, Users, LogIn, CalendarCheck2, MessageSquareText, Circle, Zap, Bookmark, LayoutGrid, PenLine, PlayCircle, Check, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { supabase } from '../utils/supabase'
 import { listRecords } from '../utils/cloudStore'
 import { ROSTER } from '../utils/auth'
@@ -22,6 +22,7 @@ const SORT_COLUMNS = {
   scrapCount: { label: '스크랩', get: (r) => r.scrapCount, type: 'number' },
   simCount: { label: '시뮬레이션', get: (r) => r.simCount, type: 'number' },
   simFeedbackCount: { label: '시뮬 피드백', get: (r) => r.simFeedbackCount, type: 'number' },
+  guideWatched: { label: '안내영상', get: (r) => (r.guideWatched ? 1 : 0), type: 'number' },
 }
 
 function SortHeader({ label, icon, sortKey, current, dir, onSort, align = 'center', className = '' }) {
@@ -56,13 +57,14 @@ export default function AdminDashboard({ onClose }) {
     async function load() {
       try {
         const staleBefore = new Date(Date.now() - STALE_MS).toISOString()
-        const [loginEvents, sessionsRes, answersRes, questionsRes, analysisRecords, feedbackRecords] = await Promise.all([
+        const [loginEvents, sessionsRes, answersRes, questionsRes, analysisRecords, feedbackRecords, guideSeenRecords] = await Promise.all([
           listRecords('login_event'),
           supabase.from('sessions').select('name, last_seen').gte('last_seen', staleBefore),
           supabase.from('answers').select('author'),
           supabase.from('questions').select('author, category').eq('category', 'unexpected'),
           listRecords('analysis'),
           listRecords('feedback'),
+          listRecords('guide_seen'),
         ])
         if (cancelled) return
 
@@ -110,6 +112,8 @@ export default function AdminDashboard({ onClose }) {
           simFeedbackCountByName[f.author] = (simFeedbackCountByName[f.author] || 0) + 1
         }
 
+        const guideWatchedNames = new Set(guideSeenRecords.map((r) => r.author).filter(Boolean))
+
         const built = ROSTER.map((name) => ({
           name,
           online: onlineNames.has(name),
@@ -120,6 +124,7 @@ export default function AdminDashboard({ onClose }) {
           scrapCount: scrapCountByName[name] || 0,
           simCount: simCountByName[name] || 0,
           simFeedbackCount: simFeedbackCountByName[name] || 0,
+          guideWatched: guideWatchedNames.has(name),
         }))
 
         setRows(built)
@@ -136,6 +141,7 @@ export default function AdminDashboard({ onClose }) {
   }, [])
 
   const onlineCount = rows.filter((r) => r.online).length
+  const guideWatchedCount = rows.filter((r) => r.guideWatched).length
 
   const sortedRows = useMemo(() => {
     if (!sortKey) {
@@ -173,6 +179,7 @@ export default function AdminDashboard({ onClose }) {
             <Users size={18} className="text-brand" />
             학생 활동 대시보드
             <span className="text-xs font-bold text-emerald-400">(지금 {onlineCount}명 접속 중)</span>
+            <span className="text-xs font-bold text-brand">(안내영상 {guideWatchedCount}/{ROSTER.length}명 시청)</span>
           </h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-200">
             <X size={20} />
@@ -211,8 +218,8 @@ export default function AdminDashboard({ onClose }) {
               {/* 열이 9개라 좁은 화면에서는 줄바꿈되며 깨지므로, 가로 스크롤 컨테이너 안에
                   최소 폭을 고정해서 항상 한 줄로 유지하고 필요하면 옆으로 스크롤하게 한다 */}
               <div className="hidden md:block overflow-x-auto">
-              <div className="min-w-[920px]">
-              <div className="grid grid-cols-[160px_64px_76px_76px_76px_84px_76px_92px_92px] gap-3 px-3 text-[11px] font-bold text-gray-500">
+              <div className="min-w-[1010px]">
+              <div className="grid grid-cols-[160px_64px_76px_76px_76px_84px_76px_92px_92px_76px] gap-3 px-3 text-[11px] font-bold text-gray-500">
                 <SortHeader label="이름" sortKey="name" align="left" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortHeader label="접속" sortKey="online" onSort={handleSort} current={sortKey} dir={sortDir} />
                 <SortHeader label="로그인" icon={<LogIn size={11} />} sortKey="loginCount" onSort={handleSort} current={sortKey} dir={sortDir} />
@@ -222,12 +229,13 @@ export default function AdminDashboard({ onClose }) {
                 <SortHeader label="스크랩" icon={<Bookmark size={11} />} sortKey="scrapCount" onSort={handleSort} current={sortKey} dir={sortDir} />
                 <SortHeader label="시뮬레이션" icon={<LayoutGrid size={11} />} sortKey="simCount" onSort={handleSort} current={sortKey} dir={sortDir} />
                 <SortHeader label="시뮬 피드백" icon={<PenLine size={11} />} sortKey="simFeedbackCount" onSort={handleSort} current={sortKey} dir={sortDir} />
+                <SortHeader label="안내영상" icon={<PlayCircle size={11} />} sortKey="guideWatched" onSort={handleSort} current={sortKey} dir={sortDir} />
               </div>
               <div className="space-y-1.5 mt-1.5">
               {sortedRows.map((r) => (
                 <div
                   key={r.name}
-                  className="grid grid-cols-[160px_64px_76px_76px_76px_84px_76px_92px_92px] gap-3 items-center bg-surface-alt rounded-xl px-3 py-2.5"
+                  className="grid grid-cols-[160px_64px_76px_76px_76px_84px_76px_92px_92px_76px] gap-3 items-center bg-surface-alt rounded-xl px-3 py-2.5"
                 >
                   <span className="font-bold text-sm flex items-center gap-1.5 truncate">
                     {r.online && <Circle size={7} className="fill-emerald-400 text-emerald-400 shrink-0" />}
@@ -243,6 +251,11 @@ export default function AdminDashboard({ onClose }) {
                   <span className="text-center text-sm font-bold text-gray-200">{r.scrapCount}개</span>
                   <span className="text-center text-sm font-bold text-gray-200">{r.simCount}개</span>
                   <span className="text-center text-sm font-bold text-gray-200">{r.simFeedbackCount}개</span>
+                  <span className="flex items-center justify-center">
+                    {r.guideWatched
+                      ? <Check size={15} className="text-emerald-400" />
+                      : <span className="text-gray-600">—</span>}
+                  </span>
                 </div>
               ))}
               </div>
@@ -270,6 +283,12 @@ export default function AdminDashboard({ onClose }) {
                       <div><p className="text-[10px] text-gray-500">스크랩</p><p className="text-sm font-bold text-gray-200">{r.scrapCount}개</p></div>
                       <div><p className="text-[10px] text-gray-500">시뮬레이션</p><p className="text-sm font-bold text-gray-200">{r.simCount}개</p></div>
                       <div><p className="text-[10px] text-gray-500">시뮬 피드백</p><p className="text-sm font-bold text-gray-200">{r.simFeedbackCount}개</p></div>
+                      <div>
+                        <p className="text-[10px] text-gray-500">안내영상</p>
+                        <p className="text-sm font-bold text-gray-200">
+                          {r.guideWatched ? <Check size={15} className="text-emerald-400 mx-auto" /> : '—'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ))}
