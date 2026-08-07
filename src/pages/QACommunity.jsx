@@ -14,6 +14,7 @@ import ScriptPracticeModal from '../components/ScriptPracticeModal'
 import ProfileModal from '../components/ProfileModal'
 import StaffBadge from '../components/StaffBadge'
 import { isAdminMode } from '../utils/admin'
+import { getStaffInfo, staffDisplayName } from '../utils/auth'
 
 // 돌발질문 주차 중 어느 주차에도 안 걸치는 질문(예: 앱 사용법 등)을 위한 별도 옵션.
 // WEEKS(src/utils/weeks.js)는 커리큘럼 주차라 시뮬레이션 분석실 등 다른 화면에서도 쓰이므로,
@@ -681,7 +682,7 @@ export default function QACommunity({ author, onLogout }) {
                   </div>
                   <h4 className="font-bold leading-snug">{q.title}</h4>
                   <p className="flex items-center gap-1.5 text-xs text-gray-500 mt-1">
-                    {q.author} · 답변 {q.answers?.length || 0}
+                    {staffDisplayName(q.author)} · 답변 {q.answers?.length || 0}
                     <StaffBadge author={q.author} />
                   </p>
                   {best && (
@@ -939,7 +940,7 @@ export default function QACommunity({ author, onLogout }) {
             </div>
             <h3 className="text-xl md:text-2xl font-extrabold mb-2 leading-snug">{selectedQuestion.title}</h3>
             <p className="flex items-center gap-1.5 text-sm text-gray-500 mb-3">
-              {selectedQuestion.author} · {formatDate(selectedQuestion.createdAt)}
+              {staffDisplayName(selectedQuestion.author)} · {formatDate(selectedQuestion.createdAt)}
               <StaffBadge author={selectedQuestion.author} />
             </p>
             {selectedQuestion.content && (
@@ -993,10 +994,16 @@ export default function QACommunity({ author, onLogout }) {
 
             {sortedAnswers.map((answer) => {
               const isEditing = editingAnswerId === answer.id
+              const isStaffAnswer = Boolean(getStaffInfo(answer.author))
               return (
-              <div key={answer.id} className="p-4 rounded-2xl border bg-surface-alt border-white/10">
+              <div
+                key={answer.id}
+                className={`p-4 rounded-2xl border bg-surface-alt ${
+                  isStaffAnswer ? 'border-2 border-amber-400 shadow-[0_0_16px_rgba(251,191,36,0.25)]' : 'border-white/10'
+                }`}
+              >
                 <p className="flex items-center gap-1.5 text-xs text-gray-500 mb-2">
-                  {answer.author} · {formatDate(answer.createdAt)}
+                  {staffDisplayName(answer.author)} · {formatDate(answer.createdAt)}
                   <StaffBadge author={answer.author} />
                 </p>
                 {isEditing ? (

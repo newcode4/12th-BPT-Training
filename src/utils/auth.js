@@ -29,6 +29,12 @@ export function getStaffInfo(name) {
   return STAFF_ROSTER.find((s) => s.name === name) || null
 }
 
+// 이름만 보이면 학생인지 간부인지 구분이 안 가서, 화면에 보여줄 땐 "이름 + 직함님"으로 붙인다
+export function staffDisplayName(name) {
+  const staff = getStaffInfo(name)
+  return staff ? `${name} ${staff.label}님` : name
+}
+
 const SESSION_KEY = 'pt-session'
 const STALE_MS = 5 * 60 * 1000 // 5분간 응답 없으면 끊긴 세션으로 간주하고 자리 회수
 
