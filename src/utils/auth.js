@@ -1,6 +1,8 @@
 import { supabase, supabaseConfigured } from './supabase'
 import { listRecords, putRecord } from './cloudStore'
-import { ADMIN_PIN, tryEnableAdminMode, disableAdminMode } from './admin'
+import { ADMIN_PIN, ADMIN_ACCOUNT_NAME, tryEnableAdminMode, disableAdminMode } from './admin'
+
+export { ADMIN_ACCOUNT_NAME } from './admin'
 
 // 교육생 명단 (관리자에게 전달받은 목록과 동일하게 유지)
 export const ROSTER = [
@@ -10,10 +12,6 @@ export const ROSTER = [
   '이정현', '이정훈', '이주환', '이찬미', '이홍주', '이화범', '임정현', '전승훈', '정다희', '조영래',
   '주효민', '천진영', '추연영', '허준호', '황현문',
 ]
-
-// 명단에 없는 예약된 이름 — ROSTER에 안 들어있으니 WelcomeModal 드롭다운에는 절대 안 뜬다.
-// 관리자 PIN을 아는 사람만 이 계정으로 들어올 수 있고, 실제 학생 데이터와 절대 안 섞인다.
-export const ADMIN_ACCOUNT_NAME = '테스트관리자'
 
 // 간부(팀장/매니저) 전용 계정 — ROSTER에 없어서 학생 드롭다운엔 안 뜨고 PIN으로만 들어올 수 있다.
 // 일반 학생과 똑같이 쓸 수 있지만(관리자 모드는 안 켜짐), 이 이름으로 남긴 글/댓글엔 배지가
@@ -41,6 +39,11 @@ const STALE_MS = 5 * 60 * 1000 // 5분간 응답 없으면 끊긴 세션으로 �
 // records.id는 uuid 컬럼이라 문자열 키를 쓸 수 없다 — 고정된 uuid를 예약해서 쓴다
 const DEVICE_LIMIT_SETTING_ID = '00000000-0000-4000-8000-000000000001'
 export const DEFAULT_DEVICE_LIMIT = 1
+const DEVICE_LIMIT_EXEMPT_NAMES = ['이주환']
+
+function isDeviceLimitExempt(name) {
+  return DEVICE_LIMIT_EXEMPT_NAMES.includes(name)
+}
 
 // 관리자가 켜고 끄는 "한 사람당 동시 로그인 허용 기기 수" (PC + 모바일 = 2)
 export async function getDeviceLimit() {
@@ -90,7 +93,7 @@ export async function getTakenNames() {
   if (error) return []
   const counts = {}
   for (const row of data || []) counts[row.name] = (counts[row.name] || 0) + 1
-  return Object.keys(counts).filter((name) => counts[name] >= limit)
+  return Object.keys(counts).filter((name) => !isDeviceLimitExempt(name) && counts[name] >= limit)
 }
 
 export async function login(name) {
@@ -103,23 +106,26 @@ export async function login(name) {
 
   const limit = await getDeviceLimit()
   const staleBefore = new Date(Date.now() - STALE_MS).toISOString()
+  const skipDeviceLimit = isDeviceLimitExempt(name)
 
   // 끊긴 지 오래된 세션(예: 브라우저 강제 종료)은 자리 회수를 위해 정리
   await supabase.from('sessions').delete().eq('name', name).lt('last_seen', staleBefore)
 
-  const { count, error: countError } = await supabase
-    .from('sessions')
-    .select('id', { count: 'exact', head: true })
-    .eq('name', name)
-    .gte('last_seen', staleBefore)
+  if (!skipDeviceLimit) {
+    const { count, error: countError } = await supabase
+      .from('sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('name', name)
+      .gte('last_seen', staleBefore)
 
-  if (countError) return { ok: false, error: countError.message }
-  if ((count || 0) >= limit) {
-    return {
-      ok: false,
-      error: limit === 1
-        ? '이미 다른 기기에서 로그인 중이에요. 먼저 그 기기에서 로그아웃해주세요.'
-        : `이미 ${limit}대의 기기에서 로그인 중이에요. 먼저 한 곳에서 로그아웃해주세요.`,
+    if (countError) return { ok: false, error: countError.message }
+    if ((count || 0) >= limit) {
+      return {
+        ok: false,
+        error: limit === 1
+          ? '이미 다른 기기에서 로그인 중이에요. 먼저 그 기기에서 로그아웃해주세요.'
+          : `이미 ${limit}대의 기기에서 로그인 중이에요. 먼저 한 곳에서 로그아웃해주세요.`,
+      }
     }
   }
 

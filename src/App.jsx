@@ -173,7 +173,7 @@ export default function App() {
       <main key={currentPage} className="anim-rise flex-1 max-w-5xl w-full mx-auto px-4 py-6">
         {renderPage()}
       </main>
-      <Footer />
+      <Footer author={author} />
       <SimulatorShortcut raised={currentPage === 'qa'} />
 
       <UnansweredNudge

@@ -3,7 +3,7 @@ import AdminGate from './AdminGate'
 
 const KAKAO_INQUIRY_URL = 'https://open.kakao.com/o/s2g1FvHi'
 
-export default function Footer() {
+export default function Footer({ author }) {
   return (
     <footer className="max-w-5xl mx-auto px-4 pb-24 md:pb-8 pt-2 space-y-2">
       <p className="text-[11px] leading-relaxed text-gray-500 text-center">
@@ -22,9 +22,11 @@ export default function Footer() {
           오류 · 아이디어 제보는 카카오톡 오픈채팅으로
         </a>
       </div>
-      <div className="flex justify-center">
-        <AdminGate />
-      </div>
+      {author === '테스트관리자' && (
+        <div className="flex justify-center">
+          <AdminGate />
+        </div>
+      )}
     </footer>
   )
 }
