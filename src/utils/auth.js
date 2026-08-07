@@ -1,6 +1,6 @@
 import { supabase, supabaseConfigured } from './supabase'
 import { listRecords, putRecord } from './cloudStore'
-import { ADMIN_PIN, ADMIN_ACCOUNT_NAME, tryEnableAdminMode, disableAdminMode } from './admin'
+import { ADMIN_PIN, ADMIN_ACCOUNT_NAME, canUseAdminMode, tryEnableAdminMode, disableAdminMode } from './admin'
 
 export { ADMIN_ACCOUNT_NAME } from './admin'
 
@@ -229,6 +229,6 @@ export async function logout() {
   if (session && supabaseConfigured) {
     await supabase.from('sessions').delete().eq('id', session.sessionId).eq('token', session.token)
   }
-  if (session?.name === ADMIN_ACCOUNT_NAME) disableAdminMode()
+  if (canUseAdminMode(session?.name)) disableAdminMode()
   clearSession()
 }

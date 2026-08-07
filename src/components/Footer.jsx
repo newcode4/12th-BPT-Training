@@ -1,5 +1,6 @@
 import { MessageCircle } from 'lucide-react'
 import AdminGate from './AdminGate'
+import { canUseAdminMode } from '../utils/admin'
 
 const KAKAO_INQUIRY_URL = 'https://open.kakao.com/o/s2g1FvHi'
 
@@ -22,7 +23,7 @@ export default function Footer({ author }) {
           오류 · 아이디어 제보는 카카오톡 오픈채팅으로
         </a>
       </div>
-      {author === '테스트관리자' && (
+      {canUseAdminMode(author) && (
         <div className="flex justify-center">
           <AdminGate />
         </div>
