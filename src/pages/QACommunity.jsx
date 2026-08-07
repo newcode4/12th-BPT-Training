@@ -12,6 +12,7 @@ import { listRecords, putRecord, removeRecord } from '../utils/cloudStore'
 import AnswerPracticeModal from '../components/AnswerPracticeModal'
 import ScriptPracticeModal from '../components/ScriptPracticeModal'
 import ProfileModal from '../components/ProfileModal'
+import StaffBadge from '../components/StaffBadge'
 import { isAdminMode } from '../utils/admin'
 
 // 돌발질문 주차 중 어느 주차에도 안 걸치는 질문(예: 앱 사용법 등)을 위한 별도 옵션.
@@ -679,8 +680,9 @@ export default function QACommunity({ author, onLogout }) {
                     )}
                   </div>
                   <h4 className="font-bold leading-snug">{q.title}</h4>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="flex items-center gap-1.5 text-xs text-gray-500 mt-1">
                     {q.author} · 답변 {q.answers?.length || 0}
+                    <StaffBadge author={q.author} />
                   </p>
                   {best && (
                     <p className="flex items-start gap-1 text-xs text-amber-400 mt-2 line-clamp-2">
@@ -936,8 +938,9 @@ export default function QACommunity({ author, onLogout }) {
               {selectedQuestion.week && metaBadge(qaWeekLabel(selectedQuestion.week))}
             </div>
             <h3 className="text-xl md:text-2xl font-extrabold mb-2 leading-snug">{selectedQuestion.title}</h3>
-            <p className="text-sm text-gray-500 mb-3">
+            <p className="flex items-center gap-1.5 text-sm text-gray-500 mb-3">
               {selectedQuestion.author} · {formatDate(selectedQuestion.createdAt)}
+              <StaffBadge author={selectedQuestion.author} />
             </p>
             {selectedQuestion.content && (
               <p className="text-gray-200 whitespace-pre-wrap leading-relaxed">{selectedQuestion.content}</p>
@@ -992,8 +995,9 @@ export default function QACommunity({ author, onLogout }) {
               const isEditing = editingAnswerId === answer.id
               return (
               <div key={answer.id} className="p-4 rounded-2xl border bg-surface-alt border-white/10">
-                <p className="text-xs text-gray-500 mb-2">
+                <p className="flex items-center gap-1.5 text-xs text-gray-500 mb-2">
                   {answer.author} · {formatDate(answer.createdAt)}
+                  <StaffBadge author={answer.author} />
                 </p>
                 {isEditing ? (
                   <div className="space-y-2 mb-3">

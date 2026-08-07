@@ -15,6 +15,20 @@ export const ROSTER = [
 // 관리자 PIN을 아는 사람만 이 계정으로 들어올 수 있고, 실제 학생 데이터와 절대 안 섞인다.
 export const ADMIN_ACCOUNT_NAME = '테스트관리자'
 
+// 간부(팀장/매니저) 전용 계정 — ROSTER에 없어서 학생 드롭다운엔 안 뜨고 PIN으로만 들어올 수 있다.
+// 일반 학생과 똑같이 쓸 수 있지만(관리자 모드는 안 켜짐), 이 이름으로 남긴 글/댓글엔 배지가
+// 붙는다. 팀장이 매니저보다 한 단계 위로 보이게 role을 구분해둔다.
+export const STAFF_ROSTER = [
+  { name: '김주호', label: '팀장', role: 'lead' },
+  { name: '김성태', label: '매니저', role: 'manager' },
+  { name: '조성현', label: '매니저', role: 'manager' },
+  { name: '유찬영', label: '매니저', role: 'manager' },
+]
+
+export function getStaffInfo(name) {
+  return STAFF_ROSTER.find((s) => s.name === name) || null
+}
+
 const SESSION_KEY = 'pt-session'
 const STALE_MS = 5 * 60 * 1000 // 5분간 응답 없으면 끊긴 세션으로 간주하고 자리 회수
 
@@ -145,6 +159,35 @@ export async function loginAsAdmin(pin) {
 
   setSession({ name: ADMIN_ACCOUNT_NAME, token, sessionId: data.id })
   tryEnableAdminMode(pin)
+  return { ok: true }
+}
+
+// 간부(팀장/매니저) 전용 로그인 — 관리자와 같은 PIN으로 인증하되, 관리자 모드는 켜지 않고
+// 그 사람 이름으로 일반 세션을 만든다. 자리 수 제한 없이 항상 로그인되는 건 관리자와 같다.
+export async function loginAsStaff(name, pin) {
+  if (pin !== ADMIN_PIN) {
+    return { ok: false, error: 'PIN이 올바르지 않아요.' }
+  }
+  if (!STAFF_ROSTER.some((s) => s.name === name)) {
+    return { ok: false, error: '이름을 선택해주세요.' }
+  }
+  if (!supabaseConfigured) {
+    return { ok: false, error: '서버 연결이 설정되지 않았어요.' }
+  }
+
+  await supabase.from('sessions').delete().eq('name', name)
+
+  const token = crypto.randomUUID()
+  const nowIso = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('sessions')
+    .insert({ name, token, created_at: nowIso, last_seen: nowIso })
+    .select()
+    .single()
+
+  if (error) return { ok: false, error: error.message }
+
+  setSession({ name, token, sessionId: data.id })
   return { ok: true }
 }
 

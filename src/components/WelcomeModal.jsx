@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { PartyPopper, Flame, Loader2, ShieldCheck, X } from 'lucide-react'
-import { ROSTER, login, getTakenNames, loginAsAdmin, ADMIN_ACCOUNT_NAME } from '../utils/auth'
+import { PartyPopper, Flame, Loader2, ShieldCheck, X, Crown } from 'lucide-react'
+import { ROSTER, login, getTakenNames, loginAsAdmin, loginAsStaff, ADMIN_ACCOUNT_NAME, STAFF_ROSTER } from '../utils/auth'
 
 function AdminLoginPrompt({ onComplete, onClose }) {
   const [pin, setPin] = useState('')
@@ -57,12 +57,84 @@ function AdminLoginPrompt({ onComplete, onClose }) {
   )
 }
 
+// 명단에 없는 간부(팀장/매니저) 전용 로그인 — 이름 선택 + 관리자와 같은 PIN.
+// 관리자 모드는 안 켜지고, 일반 학생과 똑같이 쓸 수 있는 세션이 만들어진다.
+function StaffLoginPrompt({ onComplete, onClose }) {
+  const [name, setName] = useState('')
+  const [pin, setPin] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async () => {
+    if (!name) {
+      setError('이름을 선택해주세요.')
+      return
+    }
+    setLoading(true)
+    setError('')
+    const result = await loginAsStaff(name, pin.trim())
+    setLoading(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    onComplete(name)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4" onClick={onClose}>
+      <div
+        className="bg-surface rounded-2xl shadow-xl max-w-xs w-full p-6 border border-white/10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="flex items-center gap-2 text-base font-extrabold">
+            <Crown size={18} className="text-amber-400" />
+            간부 계정 로그인
+          </h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-200">
+            <X size={18} />
+          </button>
+        </div>
+        <select
+          value={name}
+          onChange={(e) => { setName(e.target.value); setError('') }}
+          className="w-full p-3 border border-white/10 rounded-xl mb-3 text-center font-bold bg-surface focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+        >
+          <option value="">이름 선택</option>
+          {STAFF_ROSTER.map((s) => (
+            <option key={s.name} value={s.name}>{s.name} {s.label}님</option>
+          ))}
+        </select>
+        <input
+          type="password"
+          value={pin}
+          onChange={(e) => { setPin(e.target.value); setError('') }}
+          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+          placeholder="PIN 입력"
+          className="w-full p-3 border border-white/10 rounded-xl mb-3 text-center tracking-widest focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+        />
+        {error && <p className="text-xs font-bold text-red-400 text-center mb-3">{error}</p>}
+        <button
+          onClick={handleSubmit}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-bold py-2.5 rounded-xl transition"
+        >
+          {loading && <Loader2 size={16} className="animate-spin" />}
+          확인
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function WelcomeModal({ onComplete }) {
   const [selected, setSelected] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [taken, setTaken] = useState([])
   const [showAdminLogin, setShowAdminLogin] = useState(false)
+  const [showStaffLogin, setShowStaffLogin] = useState(false)
 
   // 이미 등록해서 사용 중인 이름은 목록에서 빼준다
   useEffect(() => {
@@ -155,18 +227,34 @@ export default function WelcomeModal({ onComplete }) {
           명단에 없는 예약된 관리자 계정으로 들어가는 문. PIN을 모르면 못 들어가니
           일반 학생 눈에 띄어도 상관없다 (기존 관리자 모드 PIN 입력창과 같은 방식).
         */}
-        <button
-          onClick={() => setShowAdminLogin(true)}
-          className="w-full text-center text-[11px] text-gray-600 hover:text-gray-400 mt-4"
-        >
-          관리자로 로그인
-        </button>
+        <div className="flex items-center justify-center gap-3 mt-4">
+          <button
+            onClick={() => setShowAdminLogin(true)}
+            className="text-center text-[11px] text-gray-600 hover:text-gray-400"
+          >
+            관리자로 로그인
+          </button>
+          <span className="text-gray-700">·</span>
+          <button
+            onClick={() => setShowStaffLogin(true)}
+            className="text-center text-[11px] text-gray-600 hover:text-gray-400"
+          >
+            간부로 로그인
+          </button>
+        </div>
       </div>
 
       {showAdminLogin && (
         <AdminLoginPrompt
           onClose={() => setShowAdminLogin(false)}
           onComplete={(name) => { setShowAdminLogin(false); onComplete(name) }}
+        />
+      )}
+
+      {showStaffLogin && (
+        <StaffLoginPrompt
+          onClose={() => setShowStaffLogin(false)}
+          onComplete={(name) => { setShowStaffLogin(false); onComplete(name) }}
         />
       )}
     </div>
