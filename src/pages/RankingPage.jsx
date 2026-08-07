@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Trophy, Zap, MessageSquareText, Bookmark, Crown } from 'lucide-react'
+import { Trophy, Zap, MessageSquareText, Bookmark, Crown, Sparkles } from 'lucide-react'
 import { supabase } from '../utils/supabase'
 import { listRecords } from '../utils/cloudStore'
 import { ROSTER } from '../utils/auth'
@@ -83,6 +83,7 @@ export default function RankingPage({ author }) {
   const [unexpectedRanked, setUnexpectedRanked] = useState([])
   const [answerRanked, setAnswerRanked] = useState([])
   const [scrapRanked, setScrapRanked] = useState([])
+  const [totalRanked, setTotalRanked] = useState([])
 
   useEffect(() => {
     let cancelled = false
@@ -123,10 +124,15 @@ export default function RankingPage({ author }) {
         }
 
         const buildRows = (byName) => ROSTER.map((name) => ({ name, value: byName[name] || 0 }))
+        const totalByName = {}
+        for (const name of ROSTER) {
+          totalByName[name] = (unexpectedByName[name] || 0) + (answerByName[name] || 0) + (scrapByName[name] || 0)
+        }
 
         setUnexpectedRanked(withRanks(buildRows(unexpectedByName), 'value'))
         setAnswerRanked(withRanks(buildRows(answerByName), 'value'))
         setScrapRanked(withRanks(buildRows(scrapByName), 'value'))
+        setTotalRanked(withRanks(buildRows(totalByName), 'value'))
         setLoading(false)
       } catch (e) {
         if (cancelled) return
@@ -156,6 +162,13 @@ export default function RankingPage({ author }) {
 
       {!loading && !error && (
         <>
+          <RankingCard
+            title="전체 합산 점수"
+            icon={<Sparkles size={16} className="text-amber-400" />}
+            unit="점"
+            ranked={totalRanked}
+            myName={author}
+          />
           <RankingCard
             title="돌발질문 개수"
             icon={<Zap size={16} className="text-brand" />}

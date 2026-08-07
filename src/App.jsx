@@ -3,6 +3,7 @@ import Navigation from './components/Navigation'
 import ProfileModal from './components/ProfileModal'
 import WelcomeModal from './components/WelcomeModal'
 import Footer from './components/Footer'
+import AnnouncementBar from './components/AnnouncementBar'
 import SimulatorShortcut from './components/SimulatorShortcut'
 import FeedbackDigest from './components/FeedbackDigest'
 import UnansweredNudge from './components/UnansweredNudge'
@@ -169,6 +170,7 @@ export default function App() {
         showGuideBadge={showGuideBadge}
         showRankingBadge={showRankingBadge}
       />
+      <AnnouncementBar />
       {/* key를 바꿔 페이지가 바뀔 때마다 등장 모션이 다시 돈다 */}
       <main key={currentPage} className="anim-rise flex-1 max-w-5xl w-full mx-auto px-4 py-6">
         {renderPage()}
