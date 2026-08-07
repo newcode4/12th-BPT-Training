@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { Trophy, Zap, MessageSquareText, Bookmark, Crown, Sparkles, Settings2, Plus, X, Loader2 } from 'lucide-react'
 import { supabase } from '../utils/supabase'
 import { listRecords, putRecord } from '../utils/cloudStore'
-import { ROSTER } from '../utils/auth'
+import { ROSTER, STAFF_ROSTER } from '../utils/auth'
 import { isAdminMode } from '../utils/admin'
 
 // 등수는 나만 알고, 남이 누군지는 절대 안 보이게 — 이름은 어디에도 안 뿌리고
@@ -24,10 +24,12 @@ function withRanks(rows, key) {
 
 const TOP_N = 10
 const RANKING_EXCLUDE_SETTING_ID = '00000000-0000-4000-8000-000000000003'
-const DEFAULT_RANKING_EXCLUDED_NAMES = ['이주환']
+const STAFF_NAMES = STAFF_ROSTER.map((staff) => staff.name)
+const RANKING_CANDIDATE_NAMES = [...ROSTER, ...STAFF_NAMES]
+const DEFAULT_RANKING_EXCLUDED_NAMES = STAFF_NAMES
 
 function sanitizeExcludedNames(names) {
-  return [...new Set((names || []).filter((name) => ROSTER.includes(name)))]
+  return [...new Set((names || []).filter((name) => STAFF_NAMES.includes(name)))]
 }
 
 function RankingCard({ title, icon, unit, ranked, myName }) {
@@ -88,7 +90,7 @@ function RankingExcludeControl({ excludedNames, onChange }) {
   const [selected, setSelected] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const available = ROSTER.filter((name) => !excludedNames.includes(name))
+  const available = STAFF_NAMES.filter((name) => !excludedNames.includes(name))
 
   const saveExcludedNames = async (nextNames) => {
     const safeNames = sanitizeExcludedNames(nextNames)
@@ -119,7 +121,7 @@ function RankingExcludeControl({ excludedNames, onChange }) {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="flex items-center gap-2 text-sm font-extrabold text-gray-200">
           <Settings2 size={15} className="text-brand" />
-          랭킹 제외 관리
+          간부 랭킹 제외 관리
         </h3>
         {saving && (
           <span className="inline-flex items-center gap-1 text-xs font-bold text-gray-400">
@@ -144,7 +146,7 @@ function RankingExcludeControl({ excludedNames, onChange }) {
           </span>
         ))}
         {excludedNames.length === 0 && (
-          <p className="text-xs text-gray-500">제외된 교육생이 없어요.</p>
+          <p className="text-xs text-gray-500">제외된 간부 계정이 없어요.</p>
         )}
       </div>
 
@@ -184,7 +186,7 @@ export default function RankingPage({ author }) {
   const admin = isAdminMode()
 
   const rankingNames = useMemo(
-    () => ROSTER.filter((name) => !excludedNames.includes(name)),
+    () => RANKING_CANDIDATE_NAMES.filter((name) => !excludedNames.includes(name)),
     [excludedNames],
   )
 
@@ -195,7 +197,7 @@ export default function RankingPage({ author }) {
   const scrapRanked = useMemo(() => buildRankedRows(scrapByName), [rankingNames, scrapByName])
   const totalRanked = useMemo(() => {
     const totalByName = {}
-    for (const name of ROSTER) {
+    for (const name of RANKING_CANDIDATE_NAMES) {
       totalByName[name] = (unexpectedByName[name] || 0) + (answerByName[name] || 0) + (scrapByName[name] || 0)
     }
     return buildRankedRows(totalByName)

@@ -28,6 +28,7 @@ function qaWeekLabel(weekId) {
 const CATEGORIES = [
   { id: 'all', label: '전체' },
   { id: 'unexpected', label: '돌발질문' },
+  { id: 'mine_unexpected', label: '내 돌발질문' },
   { id: 'general', label: '일반질문' },
 ]
 
@@ -430,7 +431,9 @@ export default function QACommunity({ author, onLogout }) {
 
   const getVisibleQuestions = () => {
     let list = [...questions]
-    if (categoryFilter !== 'all') {
+    if (categoryFilter === 'mine_unexpected') {
+      list = list.filter(q => (q.category || 'unexpected') !== 'general' && q.author === author)
+    } else if (categoryFilter !== 'all') {
       list = list.filter(q => (q.category || 'unexpected') === categoryFilter)
     }
     if (topicFilter !== 'all') {
@@ -463,7 +466,7 @@ export default function QACommunity({ author, onLogout }) {
     }
     // 돌발질문만 볼 때는 아직 원고를 안 쓴 글을 위로 올린다 — 뭐부터 연습해야 할지
     // 한눈에 보이게. sort는 안정 정렬이라 같은 그룹 안에서는 위 정렬 순서가 유지된다.
-    if (categoryFilter === 'unexpected') {
+    if (categoryFilter === 'unexpected' || categoryFilter === 'mine_unexpected') {
       list.sort((a, b) => {
         const aDone = Boolean(scripts[a.id]?.text)
         const bDone = Boolean(scripts[b.id]?.text)
@@ -766,7 +769,7 @@ export default function QACommunity({ author, onLogout }) {
 
           <div className="space-y-5">
             <div className="flex gap-2">
-              {CATEGORIES.filter(c => c.id !== 'all').map((c) => (
+              {CATEGORIES.filter(c => c.id !== 'all' && c.id !== 'mine_unexpected').map((c) => (
                 <button
                   key={c.id}
                   onClick={() => setNewCategory(c.id)}
